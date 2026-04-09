@@ -1,0 +1,40 @@
+name: ot_monitor_dashboard
+description: OT Infection Monitoring Dashboard - Flutter Desktop Application
+version: 1.0.0+1
+publish_to: none
+
+environment:
+  sdk: ">=3.3.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # WebSocket communication
+  web_socket_channel: ^2.4.5
+
+  # Charts
+  fl_chart: ^0.68.0
+
+  # State management
+  provider: ^6.1.2
+
+  # Date/time formatting
+  intl: ^0.19.0
+
+  # Config / storage
+  shared_preferences: ^2.3.1
+
+  # HTTP client for REST API calls
+  http: ^1.2.1
+
+  # Icons
+  cupertino_icons: ^1.0.8
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true

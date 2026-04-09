@@ -1,0 +1,37 @@
+# Python dependencies for the OT Monitor backend
+# Install: pip install -r requirements.txt
+
+# ── Core server ───────────────────────────────────────────────────────────────
+fastapi>=0.111.0
+uvicorn[standard]>=0.29.0
+
+# Data validation
+pydantic>=2.7.0
+
+# WebSocket client (for WebSocketSource and simulator)
+websockets>=12.0
+
+# Async SQLite
+aiosqlite>=0.20.0
+
+# YAML config
+PyYAML>=6.0
+
+# ── Serial & MQTT (used by SerialSource / hardware sensors) ───────────────────
+pyserial>=3.5            # required by MH-Z19B and PMS5003 hardware drivers
+
+# MQTT (for MqttSource - install only when needed)
+# paho-mqtt>=2.0
+
+# ── Raspberry Pi hardware sensor drivers ──────────────────────────────────────
+# Install these ONLY on the Raspberry Pi, not on the development machine.
+# Run: pip install -r requirements-rpi.txt   (see file below)
+#
+# Listed here as comments so IDEs can see them:
+#   smbus2>=0.4                    # SDP810 differential pressure (I2C via smbus2)
+#   adafruit-blinka>=8.0           # CircuitPython hardware abstraction layer
+#   adafruit-circuitpython-bme280  # BME280 temperature/humidity/pressure
+
+# ── Testing ───────────────────────────────────────────────────────────────────
+pytest>=8.0
+pytest-asyncio>=0.23

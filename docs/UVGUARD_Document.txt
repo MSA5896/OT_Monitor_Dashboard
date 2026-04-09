@@ -1,0 +1,1480 @@
+UV-GUARD
+Autonomous UV Disinfection & Environment Monitoring System
+for OT / ICU Medical Environments
+COMPLETE PROJECT ENGINEERING DOCUMENT
+Hardware · Software · Firmware · Integration · Design · Deployment
+Team 1
+Team 2
+Integration
+Timeline
+Environment Monitoring
+Disinfection Robot
+System Integration
+3–4 Months 
+To
+ Market
+Version 
+1.0  |
+  April 
+2026  |
+  CONFIDENTIAL – PROJECT TRACKING DOCUMENT
+TABLE OF CONTENTS
+1.  Project Overview & Architecture
+3
+2.  System Safety Logic & Interlock Protocol
+5
+3.  Team 1 – Environment Monitoring System
+7
+4.  Team 2 – Disinfection Mobile Robot
+12
+5.  Integration Architecture
+20
+6.  Software & Firmware Development Guide
+23
+7.  Hardware BOM & Procurement
+28
+8.  PCB & Enclosure Design
+31
+9.  Medical Standards & Compliance
+33
+10.  Testing & Validation Protocol
+35
+11.  
+Level-1
+ Project Tracking Report (3–4 Month Roadmap)
+38
+12.  Budget Estimation
+43
+1. PROJECT OVERVIEW & SYSTEM ARCHITECTURE
+1.1 Project Name & Objective
+UV-GUARD is an autonomous, safety-interlocked UV-C disinfection robot integrated with a real-time environment monitoring station, purpose-built for Operating Theatres (OT) and Intensive Care Units (ICU). The system ensures zero human exposure during UV disinfection, complete spatial coverage through AI-guided navigation, and continuous post-disinfection environment quality reporting aligned with WHO, NABH, and ASHRAE standards.
+1.2 System Sub-Systems
+Sub-System
+Function
+Responsible Team
+Status
+SS-01
+Thermal Human Detection
+Team 2 (Robot)
+Design Phase
+SS-02
+Door & Window Sensor Interlock
+Team 2 (Robot)
+Design Phase
+SS-03
+UV-C Disinfection Module
+Team 2 (Robot)
+Design Phase
+SS-04
+Autonomous Navigation & Coverage
+Team 2 (Robot)
+Design Phase
+SS-05
+Real-time Organism Detection Camera
+Team 2 (Robot)
+Design Phase
+SS-06
+Environment Sensor Array
+Team 1 (Monitoring)
+Design Phase
+SS-07
+Display Dashboard (HMI)
+Team 1 (Monitoring)
+Design Phase
+SS-08
+Central Control & Safety Logic
+Integration Team
+Design Phase
+SS-09
+Reporting & Data Logging
+Integration Team
+Design Phase
+1.3 High-Level System Architecture
+Master Controller (Raspberry Pi 5 / Jetson Orin Nano): 
+Central brain orchestrating all sub-systems. Runs safety state machine, navigation AI, computer vision pipeline, and MQTT communication bus.
+Safety Interlock Layer → Thermal cameras + door/window sensors feed safety FSM
+Disinfection Layer → UV-C lamp control + robot drive system
+Perception Layer → Camera feeds YOLOv8 for organism detection + SLAM for navigation
+Environment Layer → PMS5003, BME280, CO2, VOC sensors → HMI dashboard
+Reporting Layer → SD card + 
+WiFi
+ → cloud/mobile app log
+2. SYSTEM SAFETY LOGIC & INTERLOCK PROTOCOL
+2.1 Safety State Machine (FSM)
+UV-GUARD operates a strict 7-state Finite State Machine. UV-C lamps CANNOT energize unless ALL safety conditions are simultaneously TRUE. A single breach triggers immediate lamp shutdown.
+State
+Name
+Condition to Enter
+Action
+S0
+IDLE
+System power-on default
+All outputs OFF. Await start command.
+S1
+PRE-CHECK
+Start command received
+Run thermal scan + check all door/window sensors.
+S2
+ARMED
+No humans detected + all doors/windows CLOSED
+Alert via buzzer/light. 30-sec countdown before UV ON.
+S3
+DISINFECTING
+All S2 conditions still TRUE after countdown
+UV-C ON. Robot begins coverage pattern. Continuous monitoring.
+S4
+BREACH DETECTED
+Any sensor fails during S3
+UV-C OFF immediately (<50ms). Sound alarm. Log event.
+S5
+RE-CHECK
+Breach cleared + operator confirmation
+Return to S1 pre-check cycle.
+S6
+COMPLETE
+Coverage 
+map
+ 100% + timer elapsed
+UV-C OFF. Post-scan mode begins. Generate report.
+2.2 Sensor Interlock Conditions
+Thermal Human Detection
+Sensor: MLX90640 32×24 Thermal Camera Array (×2 units for full room coverage)
+Detection threshold: Any pixel >32°C within defined ROI = HUMAN DETECTED
+Scan frequency: Every 500ms during ARMED and DISINFECTING states
+False-positive handling: 3 consecutive positive readings required before breach trigger (1.5 sec)
+Door & Window Sensors
+Type: Magnetic Reed Switches (MC-38) on all OT/ICU doors + windows
+Logic: NC (Normally Closed) = SAFE. Any OPEN = BREACH
+Response time: <10ms interrupt-driven on microcontroller GPIO
+Wiring: Supervised loop with EOL (End of Line) resistor to detect tampering
+UV-C Interlock Hardware
+Hardware relay with normally-open contacts – relay de-energizes = UV OFF (fail-safe)
+Separate hardware watchdog timer: if MCU freezes → relay trips within 2 seconds
+Emergency Stop button (red mushroom head) on robot + wall-mounted panel
+2.3 Safety Wiring Diagram (Description)
+Power → Main MCB → Safety Relay Chain: [Thermal OK] AND [All Doors Closed] AND [Watchdog Pulse] AND [No E-STOP] → UV Lamp Driver Board. Any link breaks = UV OFF.
+3. TEAM 1 – ENVIRONMENT MONITORING SYSTEM
+3.1 Sensor Selection & Justification
+Sensor
+Parameter
+Range
+Accuracy
+Interface
+PMS5003
+PM1.0, PM2.5, PM10 (Particulate Matter)
+0–500 µg/m³
+±10 µg/m³
+UART (9600 baud)
+BME280
+Temperature, Humidity, Barometric Pressure
+T: -40–85°C H: 0–100%RH P: 300–1100 
+hPa
+T: ±0.5°C H: ±3%
+I2C / SPI
+MH-Z19B
+CO2 Concentration
+0–5000 ppm
+±50 ppm ±5%
+UART / PWM
+SGP30
+TVOC, eCO2
+TVOC: 0–60000 ppb
+±15% of reading
+I2C
+MLX90614
+Spot IR Temperature (surface sterilization check)
+−70–382°C
+±0.5°C
+I2C (
+SMBus
+)
+BH1750
+Ambient Light (lux) (UV verification)
+1–65535 lux
+±20%
+I2C
+3.2 Medical OT/ICU Environmental Standards
+The HMI display shall classify each parameter using the following 
+medically-referenced
+ thresholds (WHO, ASHRAE 170, NABH, and CDC OT standards):
+Parameter
+Unit
+EXCELLENT ✅
+GOOD ✅
+WARNING ⚠️
+DANGER 🔴
+Temperature
+°C
+20–21
+18–24
+16–17 or 25–26
+<16 or >26
+Relative Humidity
+%RH
+50–55
+45–60
+35–44 or 61–70
+<35 or >70
+CO2
+ppm
+<600
+600–800
+800–1000
+>1000
+PM2.5
+µg/m³
+<5
+5–10
+10–25
+>25
+PM10
+µg/m³
+<10
+10–20
+20–50
+>50
+TVOC
+ppb
+<50
+50–200
+200–500
+>500
+Air Changes/Hr
+ACH
+>25
+20–25
+15–20
+<15
+OT Pressure
+Pa (vs corridor)
++8 to +12
++5 to +15
++3 to +5
+<+3
+3.3 HMI Display Design
+Hardware
+Primary Display: 10.1" HDMI IPS Touchscreen (1280×800) mounted on wall bracket
+Secondary Display: 2.8" SPI TFT (ILI9341) on robot body for local status
+Buzzer: 5V active piezo for audio alerts
+RGB LED Strip: WS2812B addressable LEDs (Green/Yellow/Red ambient status)
+Software Stack (Python + 
+Tkinter
+/PyQt5)
+Main dashboard: Real-time gauges for all 6+ sensor parameters
+Color-coded status badges: EXCELLENT (green), GOOD (teal), WARNING (amber), DANGER (red)
+Trend charts: 1-hour rolling chart using matplotlib embedded
+Infection Risk Score: Composite score 0–100 calculated from weighted sensor values
+Surgery Readiness Banner: 'READY FOR SURGERY ✓', 'CONDITIONAL ⚠', 'NOT SAFE ✗'
+3.4 Team 1 – Firmware Architecture
+Microcontroller: Raspberry Pi 4 Model B (4GB) + Arduino Mega 2560 (sensor co-processor)
+Arduino Mega handles time-critical sensor polling and sends data via USB-Serial to RPi4 at 115200 baud. RPi4 runs Python application for data processing, display, logging, and MQTT publishing.
+Layer
+Technology
+Responsibility
+Sensor Layer
+Arduino Mega (C++)
+Poll PMS5003, BME280, MH-Z19B, SGP30 every 2 sec. Send JSON over Serial.
+Data Processing
+Python 3.11 (RPi4)
+Parse JSON, calculate composite scores, classify per medical thresholds.
+Display Layer
+PyQt5 / 
+Tkinter
+Render dashboard. Update every 5 sec. Touch input for navigation.
+Storage
+InfluxDB
+ (local)
+Time-series storage. Retain 90-day history.
+Communication
+MQTT (
+Mosquitto
+)
+Publish sensor data to broker for robot + cloud integration.
+Reporting
+Python + 
+ReportLab
+Auto-generate PDF disinfection completion reports.
+3.5 Team 1 Code Modules
+Module 1: sensor_manager.py
+Purpose: 
+Unified sensor abstraction layer. Each sensor has its own class inheriting from 
+BaseSensor
+.
+class PMS5003Sensor(
+BaseSensor
+):     def read(self) -> 
+dict
+:         # Parse 32-byte frame from UART         # Returns: {pm1: float, pm2_5: float, pm10: float}  class BME280Sensor(
+BaseSensor
+):     def read(self) -> 
+dict
+:         # Read via I2C using smbus2         # Returns: {temp: float, humidity: float, pressure: float}  class CO2Sensor(
+BaseSensor
+):     def read(self) -> 
+dict
+:         # Send 0xFF 0x01 0x86 command, parse 9-byte response         # Returns: {co2_ppm: int}
+Module 2: classifier.py
+Purpose: 
+Map raw sensor readings to medical classification levels and compute Surgery Readiness Score.
+THRESHOLDS = {     'temp':     [(20,21,'EXCELLENT'), (18,24,'GOOD'), (16,26,'WARNING')],     'humidity': [(50,55,'EXCELLENT'), (45,60,'GOOD'), (35,70,'WARNING')],     'co2':      [(0,600,'EXCELLENT'), (600,800,'GOOD'), (800,1000,'WARNING')],     'pm2_5':    [(0,5,'EXCELLENT'),  (5,10,'GOOD'),   (10,25,'WARNING')], } def classify(param, value) -> str:     for low, high, label in THRESHOLDS[param]:         if low <= value <= high: return label     return 'DANGER' def 
+surgery_readiness_score
+(readings) -> int:     # Weighted composite: temp(20%) + humidity(20%) +     # co2(25%) + pm2_5(25%) + 
+tvoc
+(10%) -> 0-100
+4. TEAM 2 – DISINFECTION MOBILE ROBOT
+4.1 Robot Mechanical Design
+Chassis Specification
+Parameter
+Specification
+Chassis Type
+Differential Drive 4-Wheel (2 driven + 2 casters)
+Overall Dimensions
+600mm (L) × 500mm (W) × 1400mm (H) including UV tower
+Material
+Aluminum
+ extrusion frame (20×20 V-slot) + ABS enclosures
+Drive Motors
+2× 12V 30RPM Planetary Gear DC Motor with encoder (200 PPR)
+Wheels
+150mm diameter polyurethane rubber wheels
+Payload Capacity
+15 kg (for electronics + UV lamps + battery)
+Speed
+0.2 m/s operating speed (slow for thorough disinfection)
+Battery
+24V 20Ah LiFePO4 (lithium iron phosphate – safe for medical)
+Runtime
+4–6 hours per charge (covers 50–60 m² OT)
+Charging
+Auto-docking charging station at OT entrance
+4.2 UV-C Lamp System
+Lamp Selection
+Type: Amalgam UV-C Germicidal Lamps (254 nm wavelength – peak germicidal)
+Power: 2× 55W lamps on rotating arm + 1× 36W lower lamp for floor/corner
+UV Intensity: Minimum 25 
+mW
+/cm² at 1 meter distance (WHO standard for 3-log reduction)
+Lamp Life: 9,000 hours (replace annually)
+Warm-up Time: 3–5 minutes to full intensity (system accounts for warm-up in FSM)
+Driver: Electronic ballast with 0-10V dimming for controlled ramp-up
+Coverage Algorithm
+Room map imported from CAD floor plan OR 
+auto-generated
+ by SLAM on first run
+Coverage Path: Modified Boustrophedon (lawnmower) pattern with 0.5m pass spacing
+Corner Strategy: Robot pauses 45 seconds at each corner, rotates 360° for full exposure
+Dose Calculation: UV dose = Intensity (
+mW
+/cm²) × Time (sec). Target: ≥4000 
+mJ
+/cm² for C. difficile
+UV dose sensor (radiometer) on robot confirms actual delivered dose at each position
+4.3 Navigation System
+SLAM (Simultaneous Localization and Mapping)
+LiDAR: RPLIDAR A1M8 (360°, 12m range, 8000 samples/sec) for SLAM mapping
+SLAM Algorithm: 
+GMapping
+ or Cartographer ROS2 package
+Localization: AMCL (Adaptive Monte Carlo Localization) during operation
+Path Planner: Nav2 (Navigation2) ROS2 stack with DWA local planner
+Odometry: Motor encoders + MPU6050 IMU fusion (Kalman filter)
+Obstacle Avoidance: 3× HC-SR04 ultrasonic sensors (front, left-front, right-front)
+Object Detection for Coverage Verification
+Camera: Intel RealSense D435i (RGB-D) – provides depth + 
+color
+Model: YOLOv8n-seg (nano, real-time) trained on medical equipment classes
+Purpose: Detect furniture/equipment to navigate around AND verify UV shadow zones
+Shadow Zone Handling: If equipment blocks UV, robot moves to alternate angle and re-exposes
+4.4 Thermal Scanning System (Anti-Human Safety)
+Hardware
+Sensor: 2× MLX90640 Thermal Camera (32×24 pixels, 110° 
+FoV
+, I2C)
+Mounted: Front-top and rear-top of robot for 270° coverage
+Fixed wall unit: 1× MLX90640 at door for pre-entry scan (ceiling mount)
+Detection Algorithm (Python/C++)
+def 
+detect_human
+(
+thermal_frame
+) -> bool:     # 1. Apply 5x5 median filter (noise 
+reduction)   
+  # 2. Threshold: pixels > 32.0°C flagged as ROI     # 3. Connected components analysis (min 50 pixels = person-
+sized)   
+  # 4. Shape analysis: aspect ratio 1.5-4.0 (human 
+body)   
+  # 5. Return True if blob found with 3 consecutive frames     # False positive guard: exclude equipment with fixed thermal signature     
+hot_pixels
+ = 
+frame[
+frame > 32.0]     if 
+len
+(
+hot_pixels
+) > 50:         blobs = 
+connected_
+components
+(
+frame > 32.0)         for blob in blobs:             if 1.5 < 
+blob.aspect
+_ratio
+ < 4.0:                 return True     return False
+4.5 UV Fluorescence Imaging System (Organism Detection)
+Concept
+Under UV-A (365nm) illumination in a darkened room (blackout condition after UV-C cycle), biological materials fluoresce. Blood stains fluoresce red-pink, bacteria colonies show as blue-white, fungi show green-yellow, and tissue particles show orange. This allows post-disinfection verification.
+Hardware for UV Fluorescence Scanning
+UV-A LED Panel: 365nm UV-A (blacklight) – 20W panel mounted on robot arm
+Camera: Raspberry Pi HQ Camera Module with 16mm lens (no IR filter – sensitive to fluorescence)
+Optical Filter: 400nm long-pass optical filter on camera lens (blocks UV, passes visible fluorescence)
+Room condition: OT blackout blinds + door closed (pre-programmed blackout routine)
+Detection Pipeline
+Capture high-res image under UV-A in darkened room
+Color
+ segmentation: HSV thresholding for red (blood), 
+green-yellow
+ (fungi), 
+blue-white
+ (bacteria)
+CNN classifier (MobileNetV2 fine-tuned) for 4 classes: Clean, Blood, Bacteria/Fungi, Tissue
+Overlay detection map on floor plan and display on HMI with GPS-tagged location
+Risk score: % contaminated area vs total floor area
+4.6 Robot Electronics Architecture
+Component
+Module
+Function
+Main Computer
+NVIDIA Jetson Orin Nano 8GB
+ROS2, SLAM, YOLOv8, Computer Vision pipeline
+Safety MCU
+STM32F4 Discovery
+FSM, relay control, watchdog, real-time sensor polling
+Motor Controller
+L298N × 2 or 
+ODrive
+Dual motor PWM control with encoder feedback
+Thermal Cameras
+MLX90640 × 2 (I2C)
+Human detection – safety interlock
+LiDAR
+RPLIDAR A1M8 (USB)
+SLAM mapping and navigation
+Depth Camera
+Intel RealSense D435i (USB3)
+3D perception, object detection
+UV-C Control
+Safety relay + MOSFET driver
+Controlled energization of UV-C lamps
+UV-A LED Driver
+Constant current LED driver
+Fluorescence imaging illumination
+IMU
+MPU6050 (I2C)
+Orientation, wheel slip detection
+Door Sensors
+MC-38 Reed switches × 6
+All doors + windows supervised loop
+Communication
+WiFi
+ (RPi) + CAN bus
+Inter-board + cloud communication
+Power Management
+24V→5V, 12V DC-DC converters
+Regulated power for all boards
+5. INTEGRATION ARCHITECTURE
+5.1 Communication Protocol
+All subsystems communicate via MQTT protocol over local 
+WiFi
+ network. A 
+Mosquitto
+ broker runs on Team 1's Raspberry Pi 4 which also serves as the local network gateway.
+MQTT Topic
+Publisher
+Subscriber / Purpose
+uvguard
+/environment/sensors
+Team 1 RPi4
+Robot + Cloud: environmental readings
+uvguard
+/safety/
+human_detected
+Robot STM32
+All systems: emergency halt trigger
+uvguard
+/safety/
+door_status
+Robot STM32
+All systems: door/window state
+uvguard
+/robot/state
+Robot Jetson
+HMI: current FSM state display
+uvguard
+/robot/
+coverage_map
+Robot Jetson
+HMI: real-time coverage progress
+uvguard
+/
+uvc
+/control
+Safety MCU
+Lamp driver: ON/OFF/DIM commands
+uvguard
+/detection/organisms
+Robot Jetson
+HMI + Report: fluorescence scan results
+uvguard
+/report/complete
+Jetson
+Cloud + Print: final disinfection report
+5.2 Data Flow Diagram (Described)
+Sensors → 
+Arduino/STM32 reads raw sensor data (2sec cycle)
+Processing → 
+Raspberry Pi classifies + scores data
+Broker → 
+MQTT 
+Mosquitto
+ distributes data to HMI, Robot, Cloud
+Display → 
+PyQt5 dashboard updates every 5 seconds on 10" screen
+5.3 API Endpoints (REST for Cloud/Mobile)
+GET  /
+api
+/v1/environment/
+latest  →
+ Latest sensor reading JSON
+GET  /
+api
+/v1/disinfection/history → Past 30 sessions log
+POST /
+api
+/v1/disinfection/start   → Remote start disinfection (requires auth token)
+GET  /
+api
+/v1/report/{
+session_
+id
+}  →
+ Download PDF report
+WS   /
+ws
+/live                     → WebSocket for real-time dashboard on mobile
+6. SOFTWARE & FIRMWARE DEVELOPMENT GUIDE
+6.1 Development Environment Setup
+Team 1 (Environment Monitoring) – Raspberry Pi 4
+OS: Raspberry Pi OS Lite 64-bit (Bookworm)
+Python 3.11 + virtual environment: python3 -m 
+venv
+ 
+uvguard_env
+Libraries: pip install 
+pyserial
+ smbus2 paho-
+mqtt
+ 
+influxdb
+-client PyQt5 matplotlib 
+reportlab
+InfluxDB
+ 2.0: Install via apt. Create bucket '
+uvguard_sensors
+'.
+Mosquitto
+ MQTT: 
+sudo
+ apt install 
+mosquitto
+ 
+mosquitto
+-clients
+Team 2 (Robot) – Jetson Orin Nano
+OS: 
+JetPack
+ 6.0 (Ubuntu 22.04 LTS based)
+ROS2 Humble: Follow official ROS2 Humble install guide for ARM64
+Install: ros-humble-navigation2, 
+ros
+-humble-slam-toolbox, 
+ros
+-humble-
+rplidar
+-
+ros
+Python: pip install 
+ultralytics
+ 
+opencv
+-python 
+numpy
+ 
+scipy
+ paho-
+mqtt
+ pyrealsense2
+YOLOv8: pip install 
+ultralytics
+  (
+use yolov8n.pt base, fine-tune on medical equipment dataset)
+6.2 ROS2 Package Structure
+uvguard_ws
+/ ├── 
+src
+/ │   ├── 
+uvguard_robot
+/          # Main robot package │   │   ├── 
+uvguard_robot
+/ │   │   │   ├── safety_fsm.py       # Finite State Machine │   │   │   ├── thermal_detector.py # Human detection │   │   │   ├── uvc_controller.py   # UV lamp control │   │   │   ├── coverage_planner.py # Path planning │   │   │   └── organism_detector.py# UV-A scan pipeline │   │   ├── config/ │   │   │   ├── nav2_params.yaml │   │   │   └── 
+slam_params.yaml
+ │   │   └── launch/ │   │       ├── robot_launch.py │   │       └── disinfection_launch.py │   └── 
+uvguard_msgs
+/           # Custom ROS2 messages │       └── 
+msg
+/ │           ├── SafetyStatus.msg │           ├── CoverageMap.msg │           └── OrganismDetection.msg
+6.3 Safety FSM Implementation (Key Code)
+class 
+SafetyFSM
+(Node):     STATES = ['IDLE','PRE_CHECK','ARMED','DISINFECTING','BREACH','RECHECK','COMPLETE']          def transition(self, event):         if 
+self.state
+ == 'ARMED' and event == 'UV_START':             if 
+self.all_clear
+():  # All safety conditions TRUE                 
+self.state
+ = 'DISINFECTING'                 
+self.activate_uvc
+()  # Energize relay         
+elif
+ 
+self.state
+ == 'DISINFECTING':             if event in ['HUMAN_DETECTED', 'DOOR_OPEN', 'WATCHDOG_FAIL']:                 
+self.deactivate_uvc
+()  # IMMEDIATE shutdown                 
+self.state
+ = 'BREACH'                 
+self.publish_alarm
+(event)          def 
+all_clear
+(self) -> bool:         return (not 
+self.human_present
+ and                 
+self.all_doors_closed
+ and                 
+self.all_windows_closed
+ and                 not 
+self.estop_pressed
+)
+6.4 YOLOv8 Training for Organism Detection
+Base model: YOLOv8n-seg (instance segmentation)
+Dataset: Collect 500+ UV-A fluorescence images per class (Clean, Blood, Bacteria, Fungi, Tissue)
+Annotation: Use 
+Roboflow
+ for bounding box + polygon annotation
+Training: yolo train model=yolov8n-seg.pt data=
+organisms.yaml
+ epochs=100 
+imgsz
+=640
+Validation: 80/10/10 train/
+val
+/test split. Target mAP50 >0.75 before deployment
+Deployment: Export to 
+TensorRT
+ FP16 for Jetson acceleration: yolo export format=engine half=True
+7. HARDWARE BILL OF MATERIALS (BOM)
+7.1 Team 1 – Environment Monitoring BOM
+#
+Component
+Model
+Qty
+Unit Price
+Total
+Source
+1
+Single Board Computer
+Raspberry Pi 4B 4GB
+1
+₹6,000
+₹6,000
+Robu.in
+2
+Arduino Mega
+Arduino Mega 2560
+1
+₹1,500
+₹1,500
+Robu.in
+3
+Air Quality Sensor
+PMS5003
+1
+₹1,800
+₹1,800
+Amazon
+4
+Temp/Humidity/Pressure
+BME280 Module
+2
+₹350
+₹700
+Robu.in
+5
+CO2 Sensor
+MH-Z19B
+1
+₹2,200
+₹2,200
+Amazon
+6
+VOC Sensor
+SGP30
+1
+₹800
+₹800
+Robu.in
+7
+IR Temperature
+MLX90614
+1
+₹950
+₹950
+Amazon
+8
+Display (10.1")
+HDMI IPS Touch 1280×800
+1
+₹5,500
+₹5,500
+Amazon
+9
+Touchscreen (2.8")
+ILI9341 SPI TFT
+1
+₹650
+₹650
+Robu.in
+10
+RGB LED Strip
+WS2812B 1m
+1
+₹350
+₹350
+Amazon
+11
+Buzzer
+5V Active Piezo
+2
+₹50
+₹100
+Local
+12
+SD Card 64GB
+SanDisk Class 10
+1
+₹650
+₹650
+Amazon
+13
+Power Supply 5V/3A
+Official RPi PSU
+1
+₹800
+₹800
+Robu.in
+14
+Enclosure
+ABS Junction Box IP65
+1
+₹1,200
+₹1,200
+Local
+15
+Misc
+ (wires, PCB, etc)
+—
+—
+—
+₹2,000
+Local
+TOTAL
+Team 1 Hardware Cost
+₹26,200
+7.2 Team 2 – Robot BOM (Selected Items)
+#
+Component
+Model
+Qty
+Unit Price
+Total
+Source
+1
+Main Computer (SBC)
+Jetson Orin Nano 8GB
+1
+₹35,000
+₹35,000
+Arrow/E-bay
+2
+Safety Microcontroller
+STM32F4 Discovery Board
+1
+₹2,500
+₹2,500
+Amazon
+3
+LiDAR Sensor
+RPLIDAR A1M8
+1
+₹12,000
+₹12,000
+Robu.in
+4
+Depth Camera
+Intel RealSense D435i
+1
+₹28,000
+₹28,000
+Amazon
+5
+Thermal Camera
+MLX90640 32×24 IR
+2
+₹3,500
+₹7,000
+Amazon
+6
+HQ Camera (Pi)
+Raspberry Pi HQ Cam + 16mm
+1
+₹8,000
+₹8,000
+Amazon
+7
+UV-C Lamps (Amalgam)
+55W Germicidal UV-C
+2
+₹3,500
+₹7,000
+B2B Supplier
+8
+UV-C Lamp (Floor)
+36W UV-C Floor Lamp
+1
+₹2,500
+₹2,500
+B2B Supplier
+9
+UV-A LED Panel 365nm
+20W UV-A Panel
+1
+₹2,800
+₹2,800
+Amazon
+10
+Electronic Ballast
+HF Ballast 55W UV
+2
+₹1,800
+₹3,600
+B2B Supplier
+11
+Safety Relay
+Omron G9SE-201 Safety Relay
+1
+₹4,500
+₹4,500
+Amazon
+12
+DC Motor + Encoder
+12V 30RPM Planetary
+2
+₹2,200
+₹4,400
+Robu.in
+13
+Motor Driver
+ODrive
+ v3.6 or L298N
+1
+₹6,500
+₹6,500
+Robu.in
+14
+LiFePO4 Battery 24V
+24V 20Ah LiFePO4 Pack
+1
+₹18,000
+₹18,000
+B2B Battery
+15
+BMS
+24V 20A Battery 
+Mgmt
+ System
+1
+₹1,500
+₹1,500
+Amazon
+16
+DC-DC Converter 5V
+24V→5V 10A Buck
+2
+₹450
+₹900
+Robu.in
+17
+DC-DC Converter 12V
+24V→12V 5A Buck
+1
+₹350
+₹350
+Robu.in
+18
+Reed Switch Sensors
+MC-38 Door Sensor
+8
+₹80
+₹640
+Robu.in
+19
+IMU
+MPU6050 Module
+1
+₹250
+₹250
+Robu.in
+20
+Ultrasonic Sensors
+HC-SR04
+3
+₹100
+₹300
+Local
+21
+Emergency Stop Button
+Red Mushroom 22mm NC
+2
+₹350
+₹700
+Amazon
+22
+V-Slot 
+Aluminum
+ Frame
+20×20 V-Slot – 3m lengths
+4
+₹600
+₹2,400
+Motedis
+/Local
+23
+Wheels + Casters
+150mm PU Wheel set
+1
+₹2,200
+₹2,200
+Robu.in
+24
+Misc
+ Electronics
+PCB, connectors, cable, etc
+—
+—
+₹5,000
+Local
+TOTAL
+Team 2 Hardware Cost
+₹1,57,340
+8. PCB & ENCLOSURE DESIGN
+8.1 Custom PCB Designs Required
+PCB-01: Safety Interface Board (STM32)
+Hosts STM32F4 footprint or uses dev board mounted via standoffs
+8× optocoupler inputs for reed switch supervised loops (PC817)
+4× relay outputs (UV lamp, buzzer, alarm light, charging relay)
+Hardware watchdog timer circuit (555 timer or dedicated IC)
+CAN bus transceiver (SN65HVD230) for inter-board communication
+24V→5V onboard regulator (LM2596 or LM7805 heatsink)
+Design tool: 
+KiCad
+ 7.0 (open source). Manufacture: JLCPCB (10pcs ~$15 USD)
+PCB-02: Sensor Hub Board (Team 1)
+Arduino Mega shield with 
+labeled
+ I2C breakouts (×6) + UART headers (×3)
+3.3V/5V level shifter for mixed-voltage sensors
+Screw terminals for secure wire connections in hospital environment
+Protection diodes on all I/O pins
+8.2 Enclosure Design
+Robot Enclosure
+Frame: 20×20 V-slot 
+aluminum
+ extrusion – rigid, lightweight, customizable
+Panels: 3mm ABS plastic sheet (laser cut or CNC routed)
+Design software: 
+FreeCAD
+ or Fusion 360
+UV-C lamp housing: UV-resistant polycarbonate shield (blocks UV from wiring)
+IP rating target: IP42 (protected from solid objects >1mm + vertical dripping water)
+Cable management: UV-resistant cable sleeves + strain relief grommets
+Environment Monitoring Station Enclosure
+Wall-mounted ABS enclosure IP65 (240×190×90mm)
+Laser-engraved labels for sensor ports
+10.1" display bezel mounted flush with front panel
+Ventilation slots with dustproof mesh on sides for air sensors
+9. MEDICAL STANDARDS & COMPLIANCE
+9.1 Applicable Standards
+Standard
+Organization
+Relevance to UV-GUARD
+ASHRAE 170-2021
+ASHRAE
+OT ventilation: 20+ ACH, temp 18-24°C, humidity 45-60%
+WHO Guidelines 2016
+WHO
+Air quality in healthcare: PM2.5 <10µg/m³, NO2 <40µg/m³
+NABH Standards
+NABH India
+Hospital infection control, OT environment standards
+IEC 60601-1
+IEC
+Medical electrical equipment safety (UV lamp system)
+ISO 14971
+ISO
+Risk management for medical devices
+EN 62471
+IEC/EN
+Photobiological safety of lamps (UV hazard classification)
+CDC Guidelines
+US CDC
+UV-C disinfection: 25 
+mW
+/cm² minimum, dose targets per pathogen
+IPC-2581
+IPC
+PCB design data format standard
+9.2 UV-C Dose Requirements by Pathogen
+Pathogen
+Required Dose
+Log Reduction
+Time @ 25mW/cm²
+C. difficile (spores)
+22,000 
+mJ
+/cm²
+3-log (99.9%)
+14.7 minutes
+MRSA
+6,000 
+mJ
+/cm²
+3-log
+4 minutes
+E. coli
+4,000 
+mJ
+/cm²
+3-log
+2.7 minutes
+Acinetobacter
+7,400 
+mJ
+/cm²
+3-log
+4.9 minutes
+SARS-CoV-2
+3,700 
+mJ
+/cm²
+3-log
+2.5 minutes
+Aspergillus (fungi)
+176,000 
+mJ
+/cm²
+2-log (99%)
+117 minutes*
+* Aspergillus requires chemical + UV combined approach. UV-GUARD targets C. difficile as the most resistant target (22,000 
+mJ
+/cm²), which ensures all other pathogens are eliminated.
+10. TESTING & VALIDATION PROTOCOL
+10.1 Unit Testing Checklist
+ID
+Test Description
+Expected Result
+Pass/Fail
+Responsible
+T01
+Thermal camera detects mannequin at 37°C body temp
+HUMAN DETECTED within 1.5sec
+[ ]
+Team 2
+T02
+Door sensor open → UV OFF within 50ms
+Relay drops <50ms measured by oscilloscope
+[ ]
+Team 2
+T03
+PMS5003 accuracy vs reference PM meter
+±15% of reference reading
+[ ]
+Team 1
+T04
+BME280 temperature accuracy
+±0.5°C vs calibrated thermometer
+[ ]
+Team 1
+T05
+CO2 sensor zero + span calibration
+Read 400ppm ambient ±50ppm
+[ ]
+Team 1
+T06
+Robot navigation in 5×5m test area
+Coverage >95% with no collisions
+[ ]
+Team 2
+T07
+UV dose meter at 1m from lamp
+≥25 
+mW
+/cm² at full power
+[ ]
+Team 2
+T08
+MQTT publish/subscribe latency
+<100ms end-to-end
+[ ]
+Integration
+T09
+Dashboard classification display
+Correct 
+color
+ + label for all levels
+[ ]
+Team 1
+T10
+YOLOv8 organism detection (blood stain)
+>80% detection rate on test panel
+[ ]
+Team 2
+T11
+Battery runtime test
+>4 hours continuous operation
+[ ]
+Team 2
+T12
+Emergency stop response
+All motion + UV stops <200ms
+[ ]
+Integration
+T13
+Full disinfection cycle (20m² test room)
+Completes without breach, report generated
+[ ]
+Integration
+T14
+Post-disinfection environment classification
+Correct EXCELLENT/GOOD/WARNING display
+[ ]
+Team 1
+10.2 Integration Test Protocol
+Step 1: Run all unit tests independently on each sub-system
+Step 2: Connect Team 1 and Team 2 systems via MQTT on local 
+WiFi
+. Verify all topics
+Step 3: Full-system dry 
+run in
+ lab without UV lamps (safety validation only)
+Step 4: Controlled UV test in shielded chamber – measure dose with calibrated radiometer
+Step 5: Full room pilot test in non-clinical environment (mock OT setup)
+Step 6: Stakeholder demonstration + feedback collection
+Step 7: Clinical pilot at partner hospital (supervised, non-patient area)
+11. 
+LEVEL-1
+ PROJECT TRACKING REPORT
+Project: 
+UV-GUARD Autonomous Disinfection System
+Target Market Launch: 
+Week 16 (4 Months from project start)
+Report Level: 
+Level 1 – Executive Tracking (Weekly Updates)
+11.1 Phase Plan (4-Month Roadmap)
+Phase
+Milestone
+W1
+W2
+W3
+W4
+W5
+W6
+W7
+W8
+W9
+W10
+W11
+W12
+W13-16
+P1
+Requirements & Design
+▓
+▓
+P1
+Component Ordering
+▓
+▓
+P2
+Team 1: Sensor Setup
+▓
+▓
+▓
+P2
+Team 1: HMI Dashboard
+▓
+▓
+▓
+P2
+Team 2: Chassis Build
+▓
+▓
+▓
+▓
+P2
+Team 2: Nav System
+▓
+▓
+▓
+▓
+P2
+Team 2: Safety System
+▓
+▓
+▓
+P2
+Team 2: UV System
+▓
+▓
+▓
+P2
+Team 2: CV Pipeline
+▓
+▓
+▓
+▓
+P3
+System Integration
+▓
+▓
+▓
+P3
+Unit Testing
+▓
+▓
+▓
+P3
+Integration Testing
+▓
+▓
+▓
+P4
+Pilot Test (Mock OT)
+▓
+▓
+▓
+P4
+Fix + Optimize
+▓
+▓
+▓
+P5
+Clinical Pilot
+▓
+▓
+▓
+P5
+Market Launch Prep
+▓
+▓
+11.2 Milestone Tracker
+ID
+Milestone
+Target Date
+Status
+Owner / Notes
+M01
+All components ordered and received
+Week 2
+🔵 Planned
+All teams / Long-lead items: Jetson, RealSense
+M02
+Team 1 sensor readings verified (all 6 sensors)
+Week 5
+🔵 Planned
+Team 1 Lead
+M03
+Team 1 HMI dashboard v1.0 running
+Week 6
+🔵 Planned
+Team 1 Dev
+M04
+Team 2 chassis assembled + motors running
+Week 5
+🔵 Planned
+Team 2 Mech
+M05
+SLAM mapping in 5×5m test area working
+Week 7
+🔵 Planned
+Team 2 Nav
+M06
+Safety FSM + thermal + door interlock verified
+Week 6
+🔵 Planned
+Team 2 Safety – CRITICAL
+M07
+UV-C system integrated + dose measured
+Week 7
+🔵 Planned
+Team 2 UV
+M08
+YOLOv8 model trained (mAP50 >0.75)
+Week 8
+🔵 Planned
+Team 2 CV
+M09
+MQTT integration all topics live
+Week 8
+🔵 Planned
+Integration
+M10
+Full unit test suite passed (14 tests)
+Week 9
+🔵 Planned
+All teams
+M11
+Full integration test in mock lab
+Week 10
+🔵 Planned
+Integration Lead
+M12
+Pilot test in 20m² mock OT – full cycle
+Week 11
+🔵 Planned
+All teams
+M13
+Clinical pilot (partner hospital)
+Week 14
+🔵 Planned
+Project Lead + Hospital Liaison
+M14
+Market launch documentation + demo video
+Week 16
+🔵 Planned
+All teams
+11.3 Risk Register
+ID
+Risk
+Probability
+Impact
+Mitigation Strategy
+R01
+Jetson Orin Nano delivery delay (import)
+HIGH
+HIGH
+Order immediately. Have Raspberry Pi 5 as backup. Port 
+Nav+CV
+ to RPi5 if needed.
+R02
+YOLOv8 organism detection accuracy <75%
+MEDIUM
+HIGH
+Collect more training data. Use ensemble model. Add UV-A intensity calibration.
+R03
+Thermal camera false positives (hot equipment)
+MEDIUM
+HIGH
+Fine-tune detection algorithm. Create exclusion zones. Use temporal filtering.
+R04
+UV-C lamp integration compliance / safety
+LOW
+VERY HIGH
+Follow IEC 60601-1. Hardware interlock. Safety review before any UV test.
+R05
+MQTT communication latency in safety path
+LOW
+HIGH
+Safety-critical signals use hardware (GPIO/relay) NOT MQTT. MQTT is telemetry only.
+R06
+Hospital regulatory approval for clinical pilot
+MEDIUM
+MEDIUM
+Engage hospital biomedical team early. Prepare IEC 60601 documentation.
+R07
+Budget overrun on robot hardware
+MEDIUM
+MEDIUM
+Contingency 20% buffer. Substitute Jetson with RPi5+Coral TPU if needed.
+R08
+Team bandwidth / skill gaps
+MEDIUM
+MEDIUM
+Weekly sync meetings. Shared GitHub repo. Pair programming for complex modules.
+11.4 Weekly Status Template
+Each team lead fills this template every Friday and shares in group chat:
+=== UV-GUARD WEEKLY STATUS – TEAM [X] – WEEK [N] === 📅 Date: ___________ ✅ Completed this week:    1. ___    2. ___ 🔄 In Progress:    1. ___ ⚠
+️  Blockers
+ / Issues:    1. ___ 📋 Plan for next week:    1. ___ 📊 Milestone Status: [ON TRACK / AT RISK / DELAYED] 💸 Budget used this week: ₹___
+12. BUDGET ESTIMATION
+12.1 Total Project Cost Summary
+Budget Category
+Estimated Cost
+Notes
+Team 1 – Environment Monitoring Hardware
+₹26,200
+All sensors + RPi4 + display
+Team 2 – Robot Hardware (Mechanical)
+₹28,000
+Frame + motors + wheels + battery
+Team 2 – Robot Electronics & Sensors
+₹1,29,340
+Jetson + RealSense + LiDAR + UV lamps
+PCB Manufacturing (JLCPCB – 2 designs)
+₹8,000
+10pcs each + assembly
+Enclosures + Fabrication
+₹12,000
+ABS panels, CNC, 3D printing
+Optical Components (UV filter, lenses)
+₹5,000
+Long-pass filter + camera lens
+Testing Equipment
+₹8,000
+UV radiometer rental + calibration
+Software Licenses & Cloud
+₹3,000
+4 months cloud hosting
+Miscellaneous + Contingency (20%)
+₹40,000
+Cables, tools, replacements
+TOTAL PROJECT BUDGET
+₹2,59,540 (~$3,100 USD)
+Prototype / MVP
+12.2 Market Pricing Estimate (Product Launch)
+Target selling price per unit (hospital): ₹8,00,000 – ₹12,00,000
+Annual maintenance contract: ₹80,000 – ₹1,20,000/year
+Disinfection-as-a-Service model: ₹15,000–25,000 per disinfection session
+Target customers: Private hospitals, government hospital OTs, diagnostic 
+centers
+, clean rooms
+12.3 Next Steps for Market Launch
+File for startup registration (DPIIT Startup India recognition)
+Apply for CDSCO (Central Drugs Standard Control Organisation) approval for medical device
+File provisional patent for autonomous UV safety interlock system
+Partner with 2–3 hospitals for paid clinical pilot program
+Develop marketing materials: demo video, brochure, website
+Approach hospital equipment distributors for distribution agreement
+UV-
+GUARD  |
+  Protecting Lives Through Intelligent 
+Disinfection  |
+  Version 
+1.0  |
+  April 2026

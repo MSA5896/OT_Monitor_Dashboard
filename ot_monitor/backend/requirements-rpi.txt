@@ -1,0 +1,17 @@
+# requirements-rpi.txt — Extra packages for Raspberry Pi hardware deployment
+# Install ONLY on the Raspberry Pi, not on development machines.
+#
+# Usage:
+#   pip install -r requirements.txt          # install base packages first
+#   pip install -r requirements-rpi.txt      # then install RPi-specific ones
+
+# ── I2C access (SDP810 differential pressure sensor) ─────────────────────────
+smbus2>=0.4
+
+# ── Adafruit CircuitPython layer (BME280 temperature/humidity/pressure) ───────
+# adafruit-blinka wraps the RPi GPIO/I2C hardware so CircuitPython libs work.
+adafruit-blinka>=8.0
+adafruit-circuitpython-bme280>=2.6.0
+
+# Note: MH-Z19B CO2 and PMS5003 PM sensors use pyserial (already in requirements.txt)
+# No additional packages needed for those two sensors.

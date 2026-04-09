@@ -1,0 +1,159 @@
+# OT Environment Monitoring System - Configuration
+# Edit this file to customise thresholds and connection settings.
+# All changes take effect on next backend start (or live-reload if enabled).
+#
+# Threshold standards applied:
+#   PM       : WHO 2021 AQG + ASHRAE 170-2021 (Healthcare) + ISO 14644-1 Class 7
+#   Temp/RH  : ASHRAE 55 / ASHRAE 170 / WHO IEQ
+#   CO₂      : ASHRAE 62.1 / NIOSH / OSHA (healthcare action level = 1000 ppm)
+#   Pressure : WHO / ASHRAE — atmospheric barometric pressure from BME280 (hPa)
+#   Std ref  : Requirement_02.md + OT_System_Requirements_Detailed.md
+#
+# SENSOR CHANGE: SDP810 differential pressure sensor REMOVED.
+#   Reason  : User requires atmospheric environmental pressure, not room-vs-corridor
+#             differential. BME280 already provides barometric pressure (hPa) directly.
+#   Sensors : BME280 (Temp/Humidity/Pressure) | MH-Z19B (CO₂) | PMS5003 (PM)
+
+ot_id: "OT-01"
+ot_name: "Operating Theatre 1"
+
+# ─── Data Source ────────────────────────────────────────────────────────────
+data_source:
+  type: simulator          # options: simulator | websocket | mqtt | serial
+  # WebSocket source (type: websocket)
+  ws_url: "ws://localhost:8001/ws/telemetry"
+  # MQTT source (type: mqtt)
+  mqtt_broker: "localhost"
+  mqtt_port: 1883
+  mqtt_topic: "ot/OT-01/telemetry"
+  mqtt_username: ""
+  mqtt_password: ""
+  # Serial/USB source (type: serial)
+  serial_port: "COM3"           # /dev/ttyUSB0 on Linux/RPi
+  serial_baud: 115200
+  # Auto-reconnect
+  reconnect_initial_delay_s: 2
+  reconnect_max_delay_s: 60
+  reconnect_multiplier: 2.0
+
+# ─── Alarm Thresholds ───────────────────────────────────────────────────────
+# Based on NABH / ASHRAE 170 / WHO indoor air guidelines.
+# Adjust per hospital infection control policy.
+thresholds:
+  temperature_c:
+    nominal: 21.0
+    warning_low:  20.0
+    warning_high: 24.0
+    alarm_low:    18.0
+    alarm_high:   25.0
+    unit: "°C"
+
+  relative_humidity_pct:
+    nominal: 52.0
+    warning_low:  40.0
+    warning_high: 60.0
+    alarm_low:    30.0
+    alarm_high:   70.0
+    unit: "%"
+
+  pm1_ugm3:
+    nominal: 3.0
+    warning_high: 10.0       # Elevated — investigate HVAC filtration
+    alarm_high:   20.0       # Unacceptable for sterile OT (ISO Class-7 threshold)
+    unit: "µg/m³"
+    max_display: 50.0        # bar chart 100% reference
+
+  pm25_ugm3:
+    nominal: 5.0
+    warning_high: 12.0       # WHO 2021 AQG 24-hr average target
+    alarm_high:   25.0       # ASHRAE 170 healthcare limit
+    unit: "µg/m³"
+    max_display: 75.0
+
+  pm10_ugm3:
+    nominal: 10.0
+    warning_high: 20.0       # ASHRAE 170 recommendation for OT rooms
+    alarm_high:   50.0       # WHO 2021 24-hr guideline
+    unit: "µg/m³"
+    max_display: 100.0
+
+  # ── Atmospheric Barometric Pressure from BME280 ──────────────────────────
+  # Standard atmospheric pressure at sea level = 1013.25 hPa.
+  # OT rooms in hospitals at typical Indian altitudes (0–500 m) range:
+  #   Normal indoor: 990–1020 hPa
+  #   Significant drop: can indicate approaching storm or altitude changes
+  # This is monitored for environmental completeness — it does NOT indicate
+  # HVAC positive/negative pressure (which would need a differential sensor).
+  # Threshold source: general meteorological / WHO environmental guidelines.
+  # Note: diff_pressure_pa field in OTData is set to None (no SDP810 sensor).
+  # Barometric pressure is reported in ext.pressure_hpa from BME280.
+  barometric_pressure_hpa:
+    nominal: 1013.0
+    warning_low:  990.0      # significant low pressure
+    warning_high: 1030.0     # significant high pressure
+    alarm_low:    970.0      # extreme low — alert
+    alarm_high:   1050.0     # extreme high — alert
+    unit: "hPa"
+
+  co2_ppm:
+    warning_high: 1000.0     # NIOSH/ASHRAE 62.1 healthcare action level
+    alarm_high:   1200.0     # OSHA unacceptable indoor air quality
+    unit: "ppm"
+
+  voc_ppb:
+    warning_high: 200.0
+    alarm_high:   500.0
+    unit: "ppb"
+
+# ─── Alarm Engine ────────────────────────────────────────────────────────────
+alarm_engine:
+  trigger_delay_s: 5          # must exceed threshold continuously for N seconds
+  hysteresis_clear_s: 10      # must be back in safe range for N seconds to clear
+  enable_combination_rules: true
+  # Combination: PM2.5 spike + occupancy increase → elevated risk notification
+  pm_spike_delta_ugm3: 20.0   # µg/m³ rise within 30s counts as spike
+
+# ─── Server ─────────────────────────────────────────────────────────────────
+server:
+  host: "127.0.0.1"
+  port: 8000
+  ws_broadcast_interval_s: 1.0   # push cadence to Flutter clients
+
+# ─── Storage ─────────────────────────────────────────────────────────────────
+storage:
+  db_path: "./data/ot_monitor.db"
+  retention_days: 90
+  prune_interval_hours: 6
+
+# ─── Authentication ──────────────────────────────────────────────────────────
+auth:
+  settings_password: "OTAdmin2024"   # change before production
+  enable_tls: false
+  cert_path: ""
+  key_path: ""
+
+# ─── NTP / Time ─────────────────────────────────────────────────────────────
+time:
+  ntp_server: "pool.ntp.org"
+  timezone: "Asia/Kolkata"
+  max_drift_warning_s: 30
+
+# ─── Cloud Sync (future) ─────────────────────────────────────────────────────
+cloud:
+  enabled: false
+  endpoint: ""
+  api_key: ""
+  sync_interval_s: 60
+
+# ─── Hardware Source Config (used when data_source.type = hardware) ───────────
+# Active only on Raspberry Pi. See RPi_Setup_Guide.md for full setup steps.
+# Sensors used: BME280 (I2C) | MH-Z19B (UART0) | PMS5003 (UART2)
+# SDP810 has been removed — barometric pressure is read from BME280 instead.
+#
+hardware_source:
+  bme280_i2c_address: 0x76   # 0x76 = SDO pin wired to GND (default)
+                             # 0x77 = SDO pin wired to 3.3V
+  co2_port: "/dev/serial0"   # MH-Z19B CO₂ → UART0 (GPIO14=TX, GPIO15=RX)
+  pms_port: "/dev/ttyAMA1"   # PMS5003 PM  → UART2 (GPIO8=TX,  GPIO9=RX)
+  poll_interval_s: 2.0       # read all sensors every 2 seconds
+  co2_warmup_s: 180          # MH-Z19B needs 3 minutes after power-on — do not reduce
