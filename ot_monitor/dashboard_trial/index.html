@@ -1,0 +1,859 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>OT Infection Monitor – Dashboard Trial</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Roboto+Mono:wght@400;600&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg:        #0a0e1a;
+    --surface:   #111827;
+    --surface2:  #1a2235;
+    --border:    #1e2d45;
+    --cyan:      #00e5ff;
+    --cyan-dim:  rgba(0,229,255,0.12);
+    --green:     #00e676;
+    --amber:     #ffab00;
+    --red:       #ff1744;
+    --purple:    #d500f9;
+    --text:      #e8edf5;
+    --text2:     #7b8ea8;
+    --text3:     #3d5068;
+    --temp-c:    #ff6d00;
+    --hum-c:     #40c4ff;
+    --pm1-c:     #b39ddb;
+    --pm25-c:    #ff8a65;
+    --pm10-c:    #ef9a9a;
+    --co2-c:     #69f0ae;
+    --bat-green: #00e676;
+    --bat-amber: #ffab00;
+    --bat-red:   #ff1744;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; background: var(--bg); font-family: 'Inter', sans-serif; color: var(--text); overflow: hidden; }
+
+  /* ── LAYOUT ──────────────────────────────────────────────── */
+  .app { display: flex; flex-direction: column; height: 100vh; }
+  .header { flex: 0 0 56px; }
+  .body   { flex: 1; display: flex; overflow: hidden; }
+  .sidenav{ flex: 0 0 64px; }
+  .main   { flex: 1; display: flex; flex-direction: column; overflow: hidden; padding: 10px 12px 8px; gap: 8px; }
+  .statusbar { flex: 0 0 50px; }
+
+  /* ── HEADER ──────────────────────────────────────────────── */
+  header {
+    display: flex; align-items: center;
+    padding: 0 20px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    height: 56px; gap: 16px;
+  }
+  .header-title { display: flex; flex-direction: column; }
+  .header-title .title-row { display: flex; align-items: center; gap: 8px; }
+  .header-title .title-row svg { color: var(--cyan); }
+  .title-main { font-size: 20px; font-weight: 800; letter-spacing: 1px; }
+  .title-main span { color: var(--cyan); }
+  .title-sub { font-size: 10px; letter-spacing: 4px; color: var(--text2); font-weight: 500; margin-top: 2px; }
+  .ecg-wrapper { flex: 1; }
+  svg.ecg { width: 100%; height: 28px; }
+  .header-logo {
+    display: flex; align-items: center; gap: 10px;
+    border: 1px solid var(--border); border-radius: 8px; padding: 6px 14px;
+  }
+  .logo-circle {
+    width: 32px; height: 32px; border-radius: 50%;
+    background: rgba(0,229,255,0.12); border: 1.5px solid var(--cyan);
+    display: flex; align-items: center; justify-content: center; font-size: 15px;
+  }
+  .logo-text { display: flex; flex-direction: column; }
+  .logo-text .name { font-size: 17px; font-weight: 800; color: var(--cyan); }
+  .logo-text .sub  { font-size: 9px; letter-spacing: 0.5px; color: var(--text2); }
+
+  /* ── SIDENAV ─────────────────────────────────────────────── */
+  .sidenav {
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    display: flex; flex-direction: column; align-items: center;
+    padding-top: 8px; gap: 0;
+  }
+  .nav-item {
+    width: 64px; height: 56px; display: flex; align-items: center; justify-content: center;
+    cursor: pointer; transition: background 0.2s; position: relative;
+    font-size: 22px;
+  }
+  .nav-item:hover { background: rgba(0,229,255,0.06); }
+  .nav-item.active {
+    background: rgba(0,229,255,0.14);
+    border-left: 3px solid var(--cyan);
+  }
+  .nav-item svg { width: 22px; height: 22px; fill: var(--text3); transition: fill 0.2s; }
+  .nav-item.active svg, .nav-item:hover svg { fill: var(--cyan); }
+  .nav-tooltip {
+    position: absolute; left: 72px; background: var(--surface2);
+    border: 1px solid var(--border); border-radius: 6px; padding: 4px 10px;
+    font-size: 11px; white-space: nowrap; opacity: 0; pointer-events: none;
+    transition: opacity 0.15s; z-index: 100;
+  }
+  .nav-item:hover .nav-tooltip { opacity: 1; }
+
+  /* ── BATTERY ALARM BANNER ────────────────────────────────── */
+  .battery-banner {
+    background: linear-gradient(90deg, rgba(255,171,0,0.18), rgba(255,171,0,0.08));
+    border: 1px solid rgba(255,171,0,0.5);
+    border-radius: 8px;
+    padding: 8px 16px;
+    display: flex; align-items: center; gap: 12px;
+    animation: bannerPulse 2s ease-in-out infinite;
+    flex-shrink: 0;
+  }
+  @keyframes bannerPulse {
+    0%,100% { border-color: rgba(255,171,0,0.5); box-shadow: 0 0 0 0 rgba(255,171,0,0); }
+    50%      { border-color: rgba(255,171,0,0.9); box-shadow: 0 0 12px 2px rgba(255,171,0,0.2); }
+  }
+  .battery-banner .bicon { font-size: 20px; animation: blink 1s step-start infinite; }
+  @keyframes blink { 50% { opacity: 0.3; } }
+  .battery-banner .bmsg { font-size: 13px; font-weight: 600; color: var(--amber); flex: 1; }
+  .battery-banner .bmsg small { display: block; font-size: 11px; font-weight: 400; color: rgba(255,171,0,0.7); }
+  .battery-banner .bclose {
+    width: 22px; height: 22px; border-radius: 50%; background: rgba(255,171,0,0.2);
+    border: none; color: var(--amber); font-size: 14px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .battery-banner.hidden { display: none; }
+
+  /* ── KPI CARDS ───────────────────────────────────────────── */
+  .kpi-row  { display: flex; gap: 8px; flex-shrink: 0; }
+  .kpi-row2 { display: flex; gap: 8px; flex-shrink: 0; }
+  .kpi-card {
+    flex: 1; background: var(--surface); border: 1px solid var(--border);
+    border-radius: 10px; padding: 10px 14px;
+    display: flex; flex-direction: column; gap: 4px;
+    transition: border-color 0.3s, box-shadow 0.3s;
+    position: relative; overflow: hidden;
+    min-height: 100px;
+  }
+  .kpi-card.compact { min-height: 68px; padding: 8px 14px; }
+  .kpi-card::before {
+    content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+    background: var(--accent, var(--border));
+    opacity: 0.7;
+  }
+  .kpi-card.warning { border-color: rgba(255,171,0,0.5); box-shadow: 0 0 14px rgba(255,171,0,0.12); }
+  .kpi-card.alarm   { border-color: rgba(255,23, 68,0.5); box-shadow: 0 0 14px rgba(255,23, 68,0.15); }
+  .kpi-card.battery-low { animation: cardPulse 1.5s ease-in-out infinite; }
+  @keyframes cardPulse {
+    0%,100% { box-shadow: 0 0 8px rgba(255,23,68,0.15); }
+    50%      { box-shadow: 0 0 22px rgba(255,23,68,0.4); }
+  }
+  .kpi-top { display: flex; align-items: center; justify-content: space-between; }
+  .kpi-label { font-size: 9px; letter-spacing: 1.5px; font-weight: 700; color: var(--text2); }
+  .kpi-icon  { font-size: 18px; }
+  .kpi-value { font-size: 30px; font-weight: 800; font-family: 'Roboto Mono', monospace; line-height: 1; }
+  .kpi-value.compact-val { font-size: 22px; }
+  .kpi-unit  { font-size: 11px; font-weight: 500; color: var(--text2); }
+  .kpi-status{ font-size: 10px; font-weight: 600; letter-spacing: 0.8px; }
+  .kpi-status.normal  { color: var(--green); }
+  .kpi-status.warning { color: var(--amber); }
+  .kpi-status.alarm   { color: var(--red); }
+  .kpi-status.fault   { color: var(--purple); }
+
+  /* battery bar inside kpi card */
+  .bat-bar-wrap { margin-top: 4px; width: 100%; height: 4px; background: rgba(255,255,255,0.06); border-radius: 2px; }
+  .bat-bar { height: 100%; border-radius: 2px; transition: width 0.8s ease, background 0.5s; }
+
+  /* ── CHARTS ROW ──────────────────────────────────────────── */
+  .charts-row { flex: 1; display: flex; gap: 10px; min-height: 0; }
+  .chart-card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+    padding: 14px; display: flex; flex-direction: column; gap: 8px; overflow: hidden;
+  }
+  .chart-card.trend { flex: 6; }
+  .chart-card.pm    { flex: 4; }
+  .chart-title { font-size: 10px; letter-spacing: 1.5px; font-weight: 700; color: var(--text2); }
+  canvas { width: 100%; flex: 1; min-height: 0; }
+
+  /* ── STATUS BAR ──────────────────────────────────────────── */
+  .statusbar {
+    background: var(--surface); border-top: 1px solid var(--border);
+    display: flex; align-items: center; padding: 0 20px; gap: 0;
+    height: 50px;
+  }
+  .sb-divider { width: 1px; height: 28px; background: var(--border); margin: 0 16px; }
+  .sb-pill {
+    display: flex; align-items: center; gap: 8px;
+    background: var(--bg); border-radius: 20px; padding: 5px 12px;
+    border: 1.5px solid var(--border);
+  }
+  .sb-pill-label { font-size: 9px; letter-spacing: 1.2px; color: var(--text2); font-weight: 600; }
+  .sb-pill-badge {
+    display: flex; align-items: center; gap: 5px;
+    background: var(--status-col, var(--green));
+    border-radius: 12px; padding: 2px 8px; font-size: 10px;
+    font-weight: 800; color: #000;
+  }
+  .sb-conn { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 500; }
+  .sb-conn .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); animation: dotPulse 2s ease infinite; }
+  @keyframes dotPulse {
+    0%,100% { opacity: 1; } 50% { opacity: 0.4; }
+  }
+  .sb-cloud { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 500; color: var(--text2); }
+
+  /* battery indicator in status bar */
+  .sb-battery {
+    display: flex; align-items: center; gap: 8px;
+  }
+  .bat-icon-wrap {
+    position: relative; display: flex; align-items: center;
+  }
+  .bat-shell {
+    width: 32px; height: 16px; border: 2px solid currentColor;
+    border-radius: 3px; position: relative; overflow: visible;
+    display: flex; align-items: center; padding: 1px 2px;
+  }
+  .bat-shell::after {
+    content: ''; position: absolute; right: -5px;
+    width: 3px; height: 8px; border-radius: 0 2px 2px 0;
+    background: currentColor; top: 50%; transform: translateY(-50%);
+  }
+  .bat-fill {
+    height: 100%; border-radius: 1px; transition: width 0.8s ease, background 0.5s;
+  }
+  .bat-bolt {
+    position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
+    font-size: 10px; line-height: 1; display: none;
+  }
+  .bat-pct-label { font-size: 12px; font-weight: 700; font-family: 'Roboto Mono', monospace; }
+  .bat-src-badge {
+    font-size: 9px; font-weight: 700; letter-spacing: 0.8px;
+    padding: 2px 7px; border-radius: 10px; border: 1px solid;
+  }
+  .bat-src-badge.mains  { color: var(--green); border-color: rgba(0,230,118,0.4); background: rgba(0,230,118,0.08); }
+  .bat-src-badge.battery{ color: var(--amber); border-color: rgba(255,171,0,0.4); background: rgba(255,171,0,0.08); }
+
+  /* pulsing glow when low */
+  .bat-low-glow { animation: batGlow 1s ease-in-out infinite; }
+  @keyframes batGlow {
+    0%,100% { filter: drop-shadow(0 0 0px transparent); }
+    50%      { filter: drop-shadow(0 0 6px var(--bat-red)); }
+  }
+
+  /* ── CLOCK ───────────────────────────────────────────────── */
+  .sb-clock { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+  .clock-time { font-size: 16px; font-weight: 700; font-family: 'Roboto Mono', monospace; color: var(--text); }
+  .clock-date { font-size: 10px; color: var(--text2); text-align: right; }
+
+  /* ── PM BAR CHART ────────────────────────────────────────── */
+  .pm-bars { display: flex; flex-direction: column; gap: 14px; justify-content: center; flex: 1; }
+  .pm-row { display: flex; flex-direction: column; gap: 4px; }
+  .pm-row-top { display: flex; justify-content: space-between; align-items: center; }
+  .pm-row-label { font-size: 10px; font-weight: 600; color: var(--text2); letter-spacing: 0.5px; }
+  .pm-row-value { font-size: 13px; font-weight: 700; font-family: 'Roboto Mono', monospace; }
+  .pm-bar-bg { height: 8px; background: rgba(255,255,255,0.05); border-radius: 4px; overflow: hidden; }
+  .pm-bar-fill { height: 100%; border-radius: 4px; transition: width 0.8s ease; }
+
+  /* ── SLIDER CONTROLS ─────────────────────────────────────── */
+  .controls {
+    position: fixed; bottom: 60px; right: 16px;
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 12px; padding: 14px 16px;
+    display: flex; flex-direction: column; gap: 10px;
+    z-index: 200; width: 240px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+  }
+  .controls h4 { font-size: 11px; letter-spacing: 1.5px; color: var(--cyan); font-weight: 700; }
+  .ctrl-row { display: flex; align-items: center; gap: 10px; }
+  .ctrl-row label { font-size: 11px; color: var(--text2); width: 80px; flex-shrink: 0; }
+  .ctrl-row input[type=range] {
+    flex: 1; -webkit-appearance: none; height: 4px; border-radius: 2px;
+    background: var(--border); outline: none; cursor: pointer;
+  }
+  .ctrl-row input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none; width: 14px; height: 14px; border-radius: 50%;
+    background: var(--cyan); cursor: pointer;
+  }
+  .ctrl-row .val { font-size: 12px; font-weight: 700; font-family: 'Roboto Mono'; width: 34px; text-align: right; }
+  .toggle-btn {
+    display: flex; gap: 8px;
+  }
+  .tgl {
+    flex: 1; padding: 5px; border-radius: 6px; border: 1px solid var(--border);
+    background: transparent; color: var(--text2); font-family: 'Inter'; font-size: 10px;
+    font-weight: 600; cursor: pointer; letter-spacing: 0.5px; transition: all 0.2s;
+  }
+  .tgl.active { background: rgba(0,229,255,0.15); border-color: var(--cyan); color: var(--cyan); }
+  .ctrl-hint { font-size: 9px; color: var(--text3); }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ── HEADER ──────────────────────────────────────────────── -->
+  <header class="header">
+    <div class="header-title">
+      <div class="title-row">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#00e5ff" stroke-width="2" stroke-linecap="round">
+          <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
+        </svg>
+        <div class="title-main"><span>OT </span>INFECTION MONITORING</div>
+      </div>
+      <div class="title-sub">D A S H B O A R D</div>
+    </div>
+
+    <div class="ecg-wrapper">
+      <svg class="ecg" viewBox="0 0 600 28" preserveAspectRatio="none">
+        <path d="M0,14 L120,14 L150,8 L180,20 L210,2 L240,22 L270,12 L300,14 L390,14 L420,10 L450,20 L480,4 L510,18 L528,14 L600,14"
+          fill="none" stroke="rgba(0,229,255,0.5)" stroke-width="1.5"/>
+      </svg>
+    </div>
+
+    <div class="header-logo">
+      <div class="logo-circle">🏥</div>
+      <div class="logo-text">
+        <div class="name">MSA</div>
+        <div class="sub">INTELLIGENT HEALTHCARE</div>
+      </div>
+    </div>
+  </header>
+
+  <!-- ── BODY ────────────────────────────────────────────────── -->
+  <div class="body">
+
+    <!-- Sidenav -->
+    <nav class="sidenav">
+      <div class="nav-item active" title="Monitor">
+        <svg viewBox="0 0 24 24"><path d="M3 3h7v7H3V3zm0 11h7v7H3v-7zm11-11h7v7h-7V3zm0 11h7v7h-7v-7z"/></svg>
+        <div class="nav-tooltip">Monitor</div>
+      </div>
+      <div class="nav-item" title="Alarms">
+        <svg viewBox="0 0 24 24"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5S10.5 3.17 10.5 4v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>
+        <div class="nav-tooltip">Alarms</div>
+      </div>
+      <div class="nav-item" title="History">
+        <svg viewBox="0 0 24 24"><path d="M3.5 18.49l6-6.01 4 4L22 6.92l-1.41-1.41-7.09 7.97-4-4L2 16.99z"/></svg>
+        <div class="nav-tooltip">History</div>
+      </div>
+      <div class="nav-item" title="Settings">
+        <svg viewBox="0 0 24 24"><path d="M19.14,12.94c0.04-0.3,0.06-0.61,0.06-0.94c0-0.32-0.02-0.64-0.07-0.94l2.03-1.58c0.18-0.14,0.23-0.41,0.12-0.61 l-1.92-3.32c-0.12-0.22-0.37-0.29-0.59-0.22l-2.39,0.96c-0.5-0.38-1.03-0.7-1.62-0.94L14.4,2.81c-0.04-0.24-0.24-0.41-0.48-0.41 h-3.84c-0.24,0-0.43,0.17-0.47,0.41L9.25,5.35C8.66,5.59,8.12,5.92,7.63,6.29L5.24,5.33c-0.22-0.08-0.47,0-0.59,0.22L2.74,8.87 C2.62,9.08,2.66,9.34,2.86,9.48l2.03,1.58C4.84,11.36,4.8,11.69,4.8,12s0.02,0.64,0.07,0.94l-2.03,1.58 c-0.18,0.14-0.23,0.41-0.12,0.61l1.92,3.32c0.12,0.22,0.37,0.29,0.59,0.22l2.39-0.96c0.5,0.38,1.03,0.7,1.62,0.94l0.36,2.54 c0.05,0.24,0.24,0.41,0.48,0.41h3.84c0.24,0,0.44-0.17,0.47-0.41l0.36-2.54c0.59-0.24,1.13-0.56,1.62-0.94l2.39,0.96 c0.22,0.08,0.47,0,0.59-0.22l1.92-3.32c0.12-0.22,0.07-0.47-0.12-0.61L19.14,12.94z M12,15.6c-1.98,0-3.6-1.62-3.6-3.6 s1.62-3.6,3.6-3.6s3.6,1.62,3.6,3.6S13.98,15.6,12,15.6z"/></svg>
+        <div class="nav-tooltip">Settings</div>
+      </div>
+    </nav>
+
+    <!-- Main content -->
+    <main class="main">
+
+      <!-- Battery banner -->
+      <div class="battery-banner" id="batteryBanner">
+        <span class="bicon">🔋</span>
+        <div class="bmsg">
+          ⚠ Battery power is below 30% – please charge the battery now.
+          <small>System is running on backup power without disturbance. Charge immediately to prevent shutdown.</small>
+        </div>
+        <button class="bclose" id="bannerClose" title="Dismiss">✕</button>
+      </div>
+
+      <!-- KPI Row 1 -->
+      <div class="kpi-row">
+        <div class="kpi-card" id="card-temp" style="--accent: var(--temp-c)">
+          <div class="kpi-top">
+            <span class="kpi-label">TEMPERATURE</span>
+            <span class="kpi-icon">🌡️</span>
+          </div>
+          <div class="kpi-value" id="kpi-temp" style="color:var(--temp-c)">22.4</div>
+          <div class="kpi-unit">°C</div>
+          <div class="kpi-status normal" id="stat-temp">● NORMAL</div>
+        </div>
+        <div class="kpi-card" id="card-hum" style="--accent: var(--hum-c)">
+          <div class="kpi-top">
+            <span class="kpi-label">HUMIDITY</span>
+            <span class="kpi-icon">💧</span>
+          </div>
+          <div class="kpi-value" id="kpi-hum" style="color:var(--hum-c)">52.1</div>
+          <div class="kpi-unit">%</div>
+          <div class="kpi-status normal" id="stat-hum">● NORMAL</div>
+        </div>
+        <div class="kpi-card" id="card-pm1" style="--accent: var(--pm1-c)">
+          <div class="kpi-top">
+            <span class="kpi-label">PM1</span>
+            <span class="kpi-icon">🌫️</span>
+          </div>
+          <div class="kpi-value" id="kpi-pm1" style="color:var(--pm1-c)">7.2</div>
+          <div class="kpi-unit">µg/m³</div>
+          <div class="kpi-status normal" id="stat-pm1">● NORMAL</div>
+        </div>
+        <div class="kpi-card" id="card-pm25" style="--accent: var(--pm25-c)">
+          <div class="kpi-top">
+            <span class="kpi-label">PM2.5</span>
+            <span class="kpi-icon">☁️</span>
+          </div>
+          <div class="kpi-value" id="kpi-pm25" style="color:var(--pm25-c)">13.8</div>
+          <div class="kpi-unit">µg/m³</div>
+          <div class="kpi-status normal" id="stat-pm25">● NORMAL</div>
+        </div>
+        <div class="kpi-card" id="card-pm10" style="--accent: var(--pm10-c)">
+          <div class="kpi-top">
+            <span class="kpi-label">PM10</span>
+            <span class="kpi-icon">🌪️</span>
+          </div>
+          <div class="kpi-value" id="kpi-pm10" style="color:var(--pm10-c)">22.5</div>
+          <div class="kpi-unit">µg/m³</div>
+          <div class="kpi-status normal" id="stat-pm10">● NORMAL</div>
+        </div>
+      </div>
+
+      <!-- KPI Row 2 (compact) -->
+      <div class="kpi-row2">
+        <div class="kpi-card compact" id="card-dp" style="--accent:#7b8ea8">
+          <div class="kpi-top">
+            <span class="kpi-label">DIFF PRESSURE</span>
+            <span class="kpi-icon" style="font-size:14px">⬇️</span>
+          </div>
+          <div style="display:flex;align-items:baseline;gap:6px">
+            <div class="kpi-value compact-val" id="kpi-dp" style="color:var(--text2)">8.2</div>
+            <div class="kpi-unit">Pa</div>
+          </div>
+        </div>
+        <div class="kpi-card compact" id="card-co2" style="--accent: var(--co2-c)">
+          <div class="kpi-top">
+            <span class="kpi-label">CO₂</span>
+            <span class="kpi-icon" style="font-size:14px">💨</span>
+          </div>
+          <div style="display:flex;align-items:baseline;gap:6px">
+            <div class="kpi-value compact-val" id="kpi-co2" style="color:var(--co2-c)">425</div>
+            <div class="kpi-unit">ppm</div>
+          </div>
+        </div>
+
+        <!-- ⚡ BATTERY KPI CARD — NEW ─────────────────────── -->
+        <div class="kpi-card compact battery-low" id="card-bat" style="--accent: var(--bat-red)">
+          <div class="kpi-top">
+            <span class="kpi-label">BATTERY</span>
+            <span class="kpi-icon" id="bat-kpi-icon" style="font-size:14px">🔋</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;margin-top:2px">
+            <div class="kpi-value compact-val" id="kpi-bat" style="color:var(--bat-red)">24</div>
+            <div class="kpi-unit">%</div>
+            <div class="kpi-status alarm" id="stat-bat">● LOW – CHARGE NOW</div>
+          </div>
+          <div class="bat-bar-wrap" style="margin-top:6px">
+            <div class="bat-bar" id="bat-kpi-bar" style="width:24%;background:var(--bat-red)"></div>
+          </div>
+        </div>
+
+        <!-- Power source badge -->
+        <div class="kpi-card compact" style="--accent: var(--amber); flex: 0.6;">
+          <div class="kpi-label">POWER SOURCE</div>
+          <div style="display:flex;align-items:center;gap:8px;margin-top:8px">
+            <span style="font-size:22px" id="pwr-icon">🔋</span>
+            <div>
+              <div id="pwr-src" style="font-size:15px;font-weight:800;color:var(--amber)">BATTERY</div>
+              <div style="font-size:9px;color:var(--text2)" id="pwr-sub">UPS Backup Active</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- spacers -->
+        <div style="flex:1"></div>
+        <div style="flex:1"></div>
+      </div>
+
+      <!-- Charts -->
+      <div class="charts-row">
+        <div class="chart-card trend">
+          <div class="chart-title">TREND – TEMPERATURE & HUMIDITY (10 min)</div>
+          <canvas id="trendCanvas"></canvas>
+        </div>
+        <div class="chart-card pm">
+          <div class="chart-title">PARTICULATE MATTER (µg/m³)</div>
+          <div class="pm-bars" id="pmBars">
+            <div class="pm-row">
+              <div class="pm-row-top">
+                <span class="pm-row-label">PM1</span>
+                <span class="pm-row-value" id="pm1-bar-val" style="color:var(--pm1-c)">7.2</span>
+              </div>
+              <div class="pm-bar-bg"><div class="pm-bar-fill" id="pm1-fill" style="width:7.2%;background:var(--pm1-c)"></div></div>
+            </div>
+            <div class="pm-row">
+              <div class="pm-row-top">
+                <span class="pm-row-label">PM2.5</span>
+                <span class="pm-row-value" id="pm25-bar-val" style="color:var(--pm25-c)">13.8</span>
+              </div>
+              <div class="pm-bar-bg"><div class="pm-bar-fill" id="pm25-fill" style="width:13.8%;background:var(--pm25-c)"></div></div>
+            </div>
+            <div class="pm-row">
+              <div class="pm-row-top">
+                <span class="pm-row-label">PM10</span>
+                <span class="pm-row-value" id="pm10-bar-val" style="color:var(--pm10-c)">22.5</span>
+              </div>
+              <div class="pm-bar-bg"><div class="pm-bar-fill" id="pm10-fill" style="width:22.5%;background:var(--pm10-c)"></div></div>
+            </div>
+
+            <!-- Battery trend bar — NEW -->
+            <div class="pm-row" style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border)">
+              <div class="pm-row-top">
+                <span class="pm-row-label">🔋 BATTERY</span>
+                <span class="pm-row-value" id="bat-bar-val" style="color:var(--bat-red)">24%</span>
+              </div>
+              <div class="pm-bar-bg"><div class="pm-bar-fill" id="bat-fill" style="width:24%;background:var(--bat-red)"></div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- ── STATUS BAR ─────────────────────────────────────────── -->
+  <footer class="statusbar">
+    <!-- OT Status -->
+    <div class="sb-pill" id="statusPill">
+      <span class="sb-pill-label">OT STATUS</span>
+      <div class="sb-pill-badge" id="statusBadge" style="--status-col: var(--green)">
+        <span>✓</span><span id="statusText">SAFE</span>
+      </div>
+    </div>
+
+    <div class="sb-divider"></div>
+
+    <!-- Connectivity -->
+    <div class="sb-conn">
+      <div class="dot"></div>
+      <span style="color:var(--green)">Connected</span>
+    </div>
+
+    <div class="sb-divider"></div>
+
+    <!-- Cloud sync -->
+    <div class="sb-cloud">
+      ☁ Cloud Sync: OFF
+    </div>
+
+    <div class="sb-divider"></div>
+
+    <!-- ⚡ BATTERY INDICATOR — NEW ──────────────────────────── -->
+    <div class="sb-battery">
+      <div class="bat-icon-wrap bat-low-glow" id="batIconWrap">
+        <div class="bat-shell" id="batShell" style="color:var(--bat-red)">
+          <div class="bat-fill" id="batFill" style="width:24%;background:var(--bat-red)"></div>
+          <span class="bat-bolt" id="batBolt">⚡</span>
+        </div>
+      </div>
+      <span class="bat-pct-label" id="batPctLabel" style="color:var(--bat-red)">24%</span>
+      <span class="bat-src-badge battery" id="batSrcBadge">🔋 BATTERY</span>
+    </div>
+
+    <div class="sb-divider"></div>
+
+    <!-- Clock -->
+    <div class="sb-clock">
+      <div>
+        <div class="clock-time" id="clockTime">--:--:--</div>
+        <div class="clock-date" id="clockDate">-- --- ----</div>
+      </div>
+    </div>
+  </footer>
+</div>
+
+<!-- ── CONTROLS PANEL ──────────────────────────────────────── -->
+<div class="controls">
+  <h4>🎮 LIVE SIMULATOR CONTROLS</h4>
+  <div class="ctrl-row">
+    <label>Battery %</label>
+    <input type="range" id="batSlider" min="0" max="100" value="24" />
+    <span class="val" id="batSliderVal">24%</span>
+  </div>
+  <div class="ctrl-row">
+    <label>Temperature</label>
+    <input type="range" id="tempSlider" min="15" max="35" value="22" step="0.1"/>
+    <span class="val" id="tempSliderVal">22°C</span>
+  </div>
+  <div class="ctrl-row">
+    <label>PM2.5</label>
+    <input type="range" id="pm25Slider" min="0" max="200" value="14"/>
+    <span class="val" id="pm25SliderVal">14</span>
+  </div>
+  <div class="toggle-btn">
+    <button class="tgl" id="tglMains" onclick="togglePower('MAINS')">🔌 MAINS</button>
+    <button class="tgl active" id="tglBat" onclick="togglePower('BATTERY')">🔋 BATTERY</button>
+    <button class="tgl" id="tglCharge" onclick="toggleCharging()">⚡ CHARGING</button>
+  </div>
+  <div class="ctrl-hint">↑ Move sliders to simulate live sensor data</div>
+</div>
+
+<script>
+// ── State ─────────────────────────────────────────────────────
+let state = {
+  battery: 24, charging: false, powerSource: 'BATTERY',
+  temp: 22.4, humidity: 52.1,
+  pm1: 7.2, pm25: 13.8, pm10: 22.5,
+  co2: 425, dp: 8.2,
+};
+
+// Trend buffer
+const TREND_SIZE = 120;
+let trendData = [];
+for (let i = 0; i < TREND_SIZE; i++) {
+  trendData.push({ temp: 22 + Math.sin(i/10)*0.5, hum: 52 + Math.sin(i/15+1)*2 });
+}
+
+// ── Close banner ───────────────────────────────────────────────
+let bannerDismissed = false;
+document.getElementById('bannerClose').onclick = () => {
+  bannerDismissed = true;
+  document.getElementById('batteryBanner').classList.add('hidden');
+};
+
+// ── Power toggle ───────────────────────────────────────────────
+let isCharging = false;
+function togglePower(src) {
+  state.powerSource = src;
+  document.getElementById('tglMains').classList.toggle('active', src === 'MAINS');
+  document.getElementById('tglBat').classList.toggle('active', src === 'BATTERY');
+  updateUI();
+}
+function toggleCharging() {
+  isCharging = !isCharging;
+  state.charging = isCharging;
+  document.getElementById('tglCharge').classList.toggle('active', isCharging);
+  updateUI();
+}
+
+// ── Battery colour helper ──────────────────────────────────────
+function batColor(pct) {
+  if (pct < 30) return 'var(--bat-red)';
+  if (pct < 50) return 'var(--bat-amber)';
+  return 'var(--bat-green)';
+}
+function batLevel(pct) {
+  if (pct >= 30) return { cls: 'normal', label: '● NORMAL' };
+  if (pct >= 10) return { cls: 'warning', label: '● LOW – CHARGE NOW' };
+  return { cls: 'alarm', label: '● CRITICAL – SHUTDOWN RISK!' };
+}
+
+// ── Main update ───────────────────────────────────────────────
+function updateUI() {
+  const { battery, temp, humidity, pm1, pm25, pm10, co2, dp, powerSource, charging } = state;
+  const bc = batColor(battery);
+  const bl = batLevel(battery);
+  const isLow = battery < 30;
+
+  // Battery KPI card
+  document.getElementById('kpi-bat').textContent = Math.round(battery);
+  document.getElementById('kpi-bat').style.color = bc;
+  document.getElementById('bat-kpi-bar').style.width = battery + '%';
+  document.getElementById('bat-kpi-bar').style.background = bc;
+  const statBat = document.getElementById('stat-bat');
+  statBat.textContent = bl.label;
+  statBat.className = 'kpi-status ' + bl.cls;
+  document.getElementById('bat-kpi-icon').textContent = charging ? '⚡' : (battery < 20 ? '🪫' : '🔋');
+  document.getElementById('card-bat').style.setProperty('--accent', bc);
+  document.getElementById('card-bat').classList.toggle('battery-low', isLow);
+
+  // Status bar battery
+  document.getElementById('batFill').style.width = battery + '%';
+  document.getElementById('batFill').style.background = bc;
+  document.getElementById('batShell').style.color = bc;
+  document.getElementById('batPctLabel').textContent = Math.round(battery) + '%';
+  document.getElementById('batPctLabel').style.color = bc;
+  document.getElementById('batIconWrap').classList.toggle('bat-low-glow', isLow);
+  document.getElementById('batBolt').style.display = charging ? 'block' : 'none';
+
+  // Battery source badge
+  const srcBadge = document.getElementById('batSrcBadge');
+  if (powerSource === 'MAINS') {
+    srcBadge.textContent = '🔌 MAINS';
+    srcBadge.className = 'bat-src-badge mains';
+  } else {
+    srcBadge.textContent = '🔋 BATTERY';
+    srcBadge.className = 'bat-src-badge battery';
+  }
+
+  // Power source KPI
+  document.getElementById('pwr-icon').textContent = powerSource === 'MAINS' ? '🔌' : '🔋';
+  document.getElementById('pwr-src').textContent = powerSource;
+  document.getElementById('pwr-src').style.color = powerSource === 'MAINS' ? 'var(--green)' : 'var(--amber)';
+  document.getElementById('pwr-sub').textContent = powerSource === 'MAINS'
+    ? (charging ? 'Charging Battery…' : 'Mains Power OK')
+    : 'UPS Backup Active';
+
+  // Battery bar in PM chart
+  document.getElementById('bat-bar-val').textContent = Math.round(battery) + '%';
+  document.getElementById('bat-bar-val').style.color = bc;
+  document.getElementById('bat-fill').style.width = battery + '%';
+  document.getElementById('bat-fill').style.background = bc;
+
+  // Banner
+  const banner = document.getElementById('batteryBanner');
+  if (isLow && !bannerDismissed) {
+    banner.classList.remove('hidden');
+  } else if (!isLow) {
+    banner.classList.add('hidden');
+    bannerDismissed = false; // re-enable banner if battery recovers
+  }
+
+  // Temperature KPI
+  document.getElementById('kpi-temp').textContent = temp.toFixed(1);
+  const tempLevel = temp > 28 ? 'alarm' : temp > 26 ? 'warning' : 'normal';
+  document.getElementById('stat-temp').textContent = tempLevel === 'alarm' ? '● ALARM' : tempLevel === 'warning' ? '● WARNING' : '● NORMAL';
+  document.getElementById('stat-temp').className = 'kpi-status ' + tempLevel;
+  document.getElementById('card-temp').className = 'kpi-card ' + (tempLevel !== 'normal' ? tempLevel : '');
+
+  // Humidity
+  document.getElementById('kpi-hum').textContent = humidity.toFixed(1);
+
+  // PM
+  const pm25Level = pm25 > 35 ? 'alarm' : pm25 > 25 ? 'warning' : 'normal';
+  document.getElementById('kpi-pm25').textContent = pm25.toFixed(1);
+  document.getElementById('stat-pm25').textContent = pm25Level === 'alarm' ? '● ALARM' : pm25Level === 'warning' ? '● WARNING' : '● NORMAL';
+  document.getElementById('stat-pm25').className = 'kpi-status ' + pm25Level;
+  document.getElementById('card-pm25').className = 'kpi-card ' + (pm25Level !== 'normal' ? pm25Level : '');
+  document.getElementById('pm25-bar-val').textContent = pm25.toFixed(1);
+  document.getElementById('pm25-fill').style.width = Math.min(pm25/2, 100) + '%';
+
+  document.getElementById('kpi-pm1').textContent = pm1.toFixed(1);
+  document.getElementById('pm1-bar-val').textContent = pm1.toFixed(1);
+  document.getElementById('pm1-fill').style.width = Math.min(pm1, 100) + '%';
+
+  document.getElementById('kpi-pm10').textContent = pm10.toFixed(1);
+  document.getElementById('pm10-bar-val').textContent = pm10.toFixed(1);
+  document.getElementById('pm10-fill').style.width = Math.min(pm10/3, 100) + '%';
+
+  document.getElementById('kpi-co2').textContent = Math.round(co2);
+  document.getElementById('kpi-dp').textContent = dp.toFixed(1);
+
+  // Status pill
+  const worstLevel = (pm25Level === 'alarm' || tempLevel === 'alarm' || battery < 10) ? 'alarm'
+    : (pm25Level === 'warning' || tempLevel === 'warning' || battery < 30) ? 'warning'
+    : 'normal';
+  const badge = document.getElementById('statusBadge');
+  const statusText = document.getElementById('statusText');
+  if (worstLevel === 'alarm') {
+    badge.style.background = 'var(--red)'; statusText.textContent = 'ALERT';
+  } else if (worstLevel === 'warning') {
+    badge.style.background = 'var(--amber)'; statusText.textContent = 'WARNING';
+  } else {
+    badge.style.background = 'var(--green)'; statusText.textContent = 'SAFE';
+  }
+}
+
+// ── Slider controls ───────────────────────────────────────────
+document.getElementById('batSlider').oninput = function() {
+  state.battery = +this.value;
+  document.getElementById('batSliderVal').textContent = this.value + '%';
+  bannerDismissed = false;
+  updateUI();
+};
+document.getElementById('tempSlider').oninput = function() {
+  state.temp = +this.value;
+  document.getElementById('tempSliderVal').textContent = this.value + '°C';
+  updateUI();
+};
+document.getElementById('pm25Slider').oninput = function() {
+  state.pm25 = +this.value;
+  state.pm10 = +this.value * 1.6;
+  state.pm1  = +this.value * 0.5;
+  document.getElementById('pm25SliderVal').textContent = this.value;
+  updateUI();
+};
+
+// ── Clock ─────────────────────────────────────────────────────
+function updateClock() {
+  const now = new Date();
+  const t = now.toLocaleTimeString('en-IN', { hour12: true, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  const d = now.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+  document.getElementById('clockTime').textContent = t;
+  document.getElementById('clockDate').textContent = d;
+}
+setInterval(updateClock, 1000); updateClock();
+
+// ── Trend canvas ──────────────────────────────────────────────
+const canvas = document.getElementById('trendCanvas');
+const ctx = canvas.getContext('2d');
+
+function drawTrend() {
+  const W = canvas.offsetWidth; const H = canvas.offsetHeight;
+  if (!W || !H) return;
+  canvas.width = W; canvas.height = H;
+  ctx.clearRect(0, 0, W, H);
+
+  const data = trendData;
+  const N = data.length;
+
+  // Grid
+  ctx.strokeStyle = 'rgba(255,255,255,0.04)';
+  ctx.lineWidth = 1;
+  for (let i = 1; i < 5; i++) {
+    ctx.beginPath(); ctx.moveTo(0, H/5*i); ctx.lineTo(W, H/5*i); ctx.stroke();
+  }
+  for (let i = 1; i < 12; i++) {
+    ctx.beginPath(); ctx.moveTo(W/12*i, 0); ctx.lineTo(W/12*i, H); ctx.stroke();
+  }
+
+  function drawLine(key, color, minV, maxV) {
+    ctx.beginPath();
+    const grad = ctx.createLinearGradient(0, 0, W, 0);
+    grad.addColorStop(0, color + '80');
+    grad.addColorStop(1, color);
+    ctx.strokeStyle = grad;
+    ctx.lineWidth = 2;
+    ctx.lineJoin = 'round';
+    data.forEach((pt, i) => {
+      const x = (i / (N-1)) * W;
+      const y = H - ((pt[key] - minV) / (maxV - minV)) * H;
+      i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+
+    // Fill area
+    ctx.beginPath();
+    data.forEach((pt, i) => {
+      const x = (i / (N-1)) * W;
+      const y = H - ((pt[key] - minV) / (maxV - minV)) * H;
+      i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    });
+    ctx.lineTo(W, H); ctx.lineTo(0, H); ctx.closePath();
+    const agrad = ctx.createLinearGradient(0, 0, 0, H);
+    agrad.addColorStop(0, color + '25');
+    agrad.addColorStop(1, color + '00');
+    ctx.fillStyle = agrad; ctx.fill();
+  }
+
+  drawLine('temp', '#ff6d00', 18, 32);
+  drawLine('hum',  '#40c4ff', 35, 70);
+
+  // Labels
+  ctx.fillStyle = 'rgba(255,109,0,0.8)'; ctx.font = '10px Inter';
+  ctx.fillText('● Temp °C', 8, 14);
+  ctx.fillStyle = 'rgba(64,196,255,0.8)';
+  ctx.fillText('● Humidity %', 80, 14);
+}
+
+// ── Simulated noise / animation ───────────────────────────────
+let tick = 0;
+function simStep() {
+  tick++;
+  // Add some realistic noise
+  const newTemp = state.temp + Math.sin(tick/30)*0.3 + (Math.random()-0.5)*0.1;
+  const newHum  = 52 + Math.sin(tick/45+1)*2 + (Math.random()-0.5)*0.3;
+  trendData.push({ temp: newTemp, hum: newHum });
+  if (trendData.length > TREND_SIZE) trendData.shift();
+
+  // Slight flicker on sensor values
+  state.pm1  = state.pm1  * 0.95 + (document.getElementById('pm25Slider').value * 0.5 + Math.abs((Math.random()-0.5)*2)) * 0.05;
+  state.pm10 = state.pm10 * 0.95 + (document.getElementById('pm25Slider').value * 1.6 + Math.abs((Math.random()-0.5)*3)) * 0.05;
+  state.co2  = 420 + 10*Math.sin(tick/120) + (Math.random()-0.5)*5;
+  state.dp   = 8.0 + Math.sin(tick/20)*0.4 + (Math.random()-0.5)*0.3;
+  state.humidity = newHum;
+
+  updateUI();
+  drawTrend();
+  requestAnimationFrame(() => setTimeout(simStep, 1000));
+}
+
+// ── Start ─────────────────────────────────────────────────────
+updateUI();
+drawTrend();
+setTimeout(simStep, 1000);
+</script>
+</body>
+</html>

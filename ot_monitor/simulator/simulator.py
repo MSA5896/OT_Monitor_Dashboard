@@ -191,16 +191,10 @@ def main() -> None:
             print(f"  {s:<16} {d}")
         return
 
-    loop = asyncio.get_event_loop()
-
-    def _stop(sig, frame):
+    try:
+        asyncio.run(run(args.url, args.scenario, args.ot_id, args.interval))
+    except KeyboardInterrupt:
         logger.info("Stopping simulator …")
-        loop.stop()
-
-    signal.signal(signal.SIGINT,  _stop)
-    signal.signal(signal.SIGTERM, _stop)
-
-    loop.run_until_complete(run(args.url, args.scenario, args.ot_id, args.interval))
 
 
 if __name__ == "__main__":
