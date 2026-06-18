@@ -17,6 +17,9 @@ aiosqlite>=0.20.0
 # YAML config
 PyYAML>=6.0
 
+# Strong authentication helpers
+bcrypt>=4.1.0
+
 # ── Serial & MQTT (used by SerialSource / hardware sensors) ───────────────────
 pyserial>=3.5            # required by MH-Z19B and PMS5003 hardware drivers
 

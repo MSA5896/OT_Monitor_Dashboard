@@ -116,7 +116,7 @@ alarm_engine:
 # ─── Server ─────────────────────────────────────────────────────────────────
 server:
   host: "127.0.0.1"
-  port: 8000
+  port: 8001
   ws_broadcast_interval_s: 1.0   # push cadence to Flutter clients
 
 # ─── Storage ─────────────────────────────────────────────────────────────────
@@ -127,7 +127,17 @@ storage:
 
 # ─── Authentication ──────────────────────────────────────────────────────────
 auth:
-  settings_password: "OTAdmin2024"   # change before production
+  # User accounts — role: "admin" (full access) | "viewer" (download + monitor only)
+  users:
+    - username: "admin"
+      password: "OTAdmin2024"
+      role: "admin"       # full access: settings, thresholds, download, alarms
+    - username: "nurse"
+      password: "OTNurse2024"
+      role: "viewer"      # limited: download + monitor; cannot change settings
+
+  session_secret: "change-this-secret"  # CHANGE before production
+  session_expire_minutes: 60
   enable_tls: false
   cert_path: ""
   key_path: ""

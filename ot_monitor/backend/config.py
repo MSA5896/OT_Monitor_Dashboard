@@ -5,6 +5,7 @@ All backend modules import from here; never read YAML directly.
 
 from __future__ import annotations
 
+import json
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -14,6 +15,7 @@ import yaml
 
 # ─── Default config path ─────────────────────────────────────────────────────
 _DEFAULT_CONFIG = Path(__file__).parent.parent / "config" / "config.yaml"
+_USERS_FILE     = Path(__file__).parent / "data" / "users.json"
 
 
 # ─── Threshold dataclasses ────────────────────────────────────────────────────
@@ -80,11 +82,20 @@ class StorageConfig:
 
 
 @dataclass
+class UserConfig:
+    username: str = ""
+    password: str = ""
+    role:     str = "viewer"   # "admin" | "viewer"
+
+
+@dataclass
 class AuthConfig:
-    settings_password: str  = "OTAdmin2024"
-    enable_tls:        bool = False
-    cert_path:         str  = ""
-    key_path:          str  = ""
+    users:                  list = field(default_factory=list)  # List[UserConfig]
+    session_secret:         str  = "change-this-secret"
+    session_expire_minutes: int  = 60
+    enable_tls:             bool = False
+    cert_path:              str  = ""
+    key_path:               str  = ""
 
 
 @dataclass
@@ -182,8 +193,32 @@ def load_config(path: Path = _DEFAULT_CONFIG) -> AppConfig:
 
     # Auth
     au = raw.get("auth", {})
+    raw_users = au.get("users", [])
+    if raw_users:
+        users = [
+            UserConfig(
+                username=u.get("username", ""),
+                password=u.get("password", ""),
+                role=u.get("role", "viewer"),
+            )
+            for u in raw_users
+        ]
+    else:
+        # Legacy single-admin fallback
+        users = [UserConfig(
+            username=au.get("admin_username", "admin"),
+            password=au.get("settings_password", "OTAdmin2024"),
+            role="admin",
+        )]
+    # If users.json sidecar exists, it takes precedence (runtime additions/removals)
+    file_users = _load_users_from_file()
+    if file_users is not None:
+        users = file_users
+
     cfg.auth = AuthConfig(
-        settings_password=au.get("settings_password", "OTAdmin2024"),
+        users=users,
+        session_secret=au.get("session_secret", "change-this-secret"),
+        session_expire_minutes=int(au.get("session_expire_minutes", 60)),
         enable_tls=au.get("enable_tls", False),
         cert_path=au.get("cert_path", ""),
         key_path=au.get("key_path", ""),
@@ -201,7 +236,27 @@ def load_config(path: Path = _DEFAULT_CONFIG) -> AppConfig:
     return cfg
 
 
-# Singleton-style cached config
+# ─── User persistence helpers ─────────────────────────────────────────────────
+
+def save_users(users: list, path: Path = _USERS_FILE) -> None:
+    """Persist user list to JSON sidecar so changes survive reload."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    data = [{"username": u.username, "password": u.password, "role": u.role} for u in users]
+    path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+
+
+def _load_users_from_file(path: Path = _USERS_FILE) -> Optional[list]:
+    """Return UserConfig list from JSON sidecar, or None if file absent."""
+    if not path.exists():
+        return None
+    raw = json.loads(path.read_text(encoding="utf-8"))
+    return [
+        UserConfig(username=u["username"], password=u["password"], role=u.get("role", "viewer"))
+        for u in raw
+    ]
+
+
+# ─── Singleton-style cached config ────────────────────────────────────────────
 _config: Optional[AppConfig] = None
 
 

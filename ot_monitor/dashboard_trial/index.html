@@ -4,6 +4,12 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>OT Infection Monitor – Dashboard Trial</title>
+<script>
+  // If opened as a local file, redirect to the backend server so cookies work
+  if (location.protocol === 'file:') {
+    location.replace('http://localhost:8001/');
+  }
+</script>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Roboto+Mono:wght@400;600&display=swap" rel="stylesheet" />
 <style>
   :root {
@@ -70,6 +76,25 @@
   .logo-text { display: flex; flex-direction: column; }
   .logo-text .name { font-size: 17px; font-weight: 800; color: var(--cyan); }
   .logo-text .sub  { font-size: 9px; letter-spacing: 0.5px; color: var(--text2); }
+  .header-actions {
+    display: flex; align-items: center; gap: 8px; margin-left: auto;
+  }
+  .action-btn {
+    border: 1px solid var(--border); background: var(--surface2); color: var(--text);
+    border-radius: 8px; padding: 8px 10px; font-size: 11px; font-weight: 700;
+    cursor: pointer; letter-spacing: 0.5px;
+  }
+  .action-btn.disabled {
+    opacity: 0.45; cursor: not-allowed;
+  }
+  .action-btn.primary {
+    background: rgba(0,229,255,0.1); color: var(--cyan); border-color: var(--cyan);
+  }
+  #logoutBtn {
+    background: rgba(255,82,82,0.1); color: #ff5252; border-color: #ff5252;
+    padding: 8px 12px; font-size: 15px; line-height: 1;
+  }
+  #logoutBtn:hover { background: rgba(255,82,82,0.22); }
 
   /* ── SIDENAV ─────────────────────────────────────────────── */
   .sidenav {
@@ -174,6 +199,63 @@
   .chart-title { font-size: 10px; letter-spacing: 1.5px; font-weight: 700; color: var(--text2); }
   canvas { width: 100%; flex: 1; min-height: 0; }
 
+  /* ── SECTION PANELS ─────────────────────────────────────── */
+  .view-panel { display: none; flex: 1; min-height: 0; }
+  .view-panel.active { display: flex; flex-direction: column; gap: 8px; }
+  .panel-card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+    padding: 14px; overflow: auto;
+  }
+  .panel-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 12px;
+  }
+  .panel-title {
+    font-size: 14px; font-weight: 800; letter-spacing: 1px; color: var(--text);
+  }
+  .panel-subtitle { font-size: 11px; color: var(--text2); }
+  .alarm-list, .history-table, .settings-grid { display: flex; flex-direction: column; gap: 10px; }
+  .alarm-item {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 10px; border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px;
+    background: rgba(255,255,255,0.03);
+  }
+  .alarm-meta { display: flex; flex-direction: column; gap: 3px; }
+  .alarm-level { font-size: 10px; letter-spacing: 1px; font-weight: 700; }
+  .alarm-level.warning { color: var(--amber); }
+  .alarm-level.alarm { color: var(--red); }
+  table {
+    width: 100%; border-collapse: collapse; font-size: 12px;
+  }
+  th, td {
+    text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--border);
+  }
+  th { color: var(--text2); font-size: 10px; letter-spacing: 1px; }
+  .auth-note {
+    font-size: 10px; color: var(--amber); letter-spacing: 0.8px;
+    margin-top: 6px;
+  }
+  .auth-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.72);
+    display: none; align-items: center; justify-content: center; z-index: 999;
+  }
+  .auth-overlay.show { display: flex; }
+  .auth-modal {
+    width: min(420px, 92vw); background: var(--surface); border: 1px solid var(--border);
+    border-radius: 12px; padding: 18px; box-shadow: 0 12px 36px rgba(0,0,0,0.5);
+  }
+  .auth-modal h3 { font-size: 14px; margin-bottom: 8px; }
+  .auth-modal p { font-size: 12px; color: var(--text2); margin-bottom: 10px; }
+  .auth-grid { display: flex; flex-direction: column; gap: 8px; }
+  .auth-input {
+    width: 100%; background: var(--bg); border: 1px solid var(--border); color: var(--text);
+    padding: 10px 12px; border-radius: 8px;
+  }
+  .auth-actions { display: flex; justify-content: flex-end; gap: 8px; }
+  .auth-actions button { padding: 8px 10px; border-radius: 8px; cursor: pointer; }
+  .auth-actions .cancel { background: transparent; color: var(--text2); border: 1px solid var(--border); }
+  .auth-actions .verify { background: var(--cyan); color: #001; border: none; font-weight: 700; }
+
   /* ── STATUS BAR ──────────────────────────────────────────── */
   .statusbar {
     background: var(--surface); border-top: 1px solid var(--border);
@@ -253,37 +335,154 @@
   .pm-bar-bg { height: 8px; background: rgba(255,255,255,0.05); border-radius: 4px; overflow: hidden; }
   .pm-bar-fill { height: 100%; border-radius: 4px; transition: width 0.8s ease; }
 
-  /* ── SLIDER CONTROLS ─────────────────────────────────────── */
-  .controls {
-    position: fixed; bottom: 60px; right: 16px;
-    background: var(--surface2); border: 1px solid var(--border);
-    border-radius: 12px; padding: 14px 16px;
-    display: flex; flex-direction: column; gap: 10px;
-    z-index: 200; width: 240px;
-    box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+  /* ── SETTINGS PANEL ─────────────────────────────────────── */
+  .settings-body { display: flex; flex-direction: column; gap: 20px; }
+  .s-section-hdr {
+    font-size: 9px; letter-spacing: 2px; font-weight: 700; color: var(--cyan);
+    margin-bottom: 12px; display: flex; align-items: center; gap: 10px;
   }
-  .controls h4 { font-size: 11px; letter-spacing: 1.5px; color: var(--cyan); font-weight: 700; }
-  .ctrl-row { display: flex; align-items: center; gap: 10px; }
-  .ctrl-row label { font-size: 11px; color: var(--text2); width: 80px; flex-shrink: 0; }
-  .ctrl-row input[type=range] {
-    flex: 1; -webkit-appearance: none; height: 4px; border-radius: 2px;
-    background: var(--border); outline: none; cursor: pointer;
+  .s-section-hdr::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+  .s-section-hdr .hdr-hint { font-size: 9px; color: var(--text3); letter-spacing: 0; font-weight: 400; }
+  .device-cfg-row { display: flex; gap: 14px; flex-wrap: wrap; align-items: flex-end; }
+  .device-field { display: flex; flex-direction: column; gap: 6px; flex: 1; min-width: 130px; }
+  .device-field > label { font-size: 9px; letter-spacing: 1.5px; color: var(--text2); font-weight: 700; }
+  .s-txt-input {
+    background: var(--bg); border: 1px solid var(--border); color: var(--text);
+    padding: 8px 10px; border-radius: 6px; font-size: 13px; width: 100%;
+    font-family: 'Roboto Mono', monospace;
   }
-  .ctrl-row input[type=range]::-webkit-slider-thumb {
-    -webkit-appearance: none; width: 14px; height: 14px; border-radius: 50%;
-    background: var(--cyan); cursor: pointer;
+  .s-txt-input:focus { outline: none; border-color: var(--cyan); }
+  .dtype-toggle { display: flex; gap: 6px; }
+  .dtype-btn {
+    flex: 1; padding: 8px; border-radius: 6px; border: 1px solid var(--border);
+    background: transparent; color: var(--text2); font-size: 12px;
+    font-weight: 700; cursor: pointer; transition: all 0.2s; font-family: 'Inter';
   }
-  .ctrl-row .val { font-size: 12px; font-weight: 700; font-family: 'Roboto Mono'; width: 34px; text-align: right; }
-  .toggle-btn {
-    display: flex; gap: 8px;
+  .dtype-btn.active { background: rgba(0,229,255,0.15); border-color: var(--cyan); color: var(--cyan); }
+  .threshold-tbl { width: 100%; border-collapse: collapse; font-size: 11px; }
+  .threshold-tbl thead tr.tbl-tier th {
+    padding: 6px 4px; font-size: 10px; font-weight: 800; letter-spacing: 0.8px;
+    text-align: center; border-bottom: 1px solid var(--border);
   }
-  .tgl {
-    flex: 1; padding: 5px; border-radius: 6px; border: 1px solid var(--border);
-    background: transparent; color: var(--text2); font-family: 'Inter'; font-size: 10px;
-    font-weight: 600; cursor: pointer; letter-spacing: 0.5px; transition: all 0.2s;
+  .threshold-tbl thead tr.tbl-sub th {
+    padding: 4px 3px 7px; font-size: 9px; font-weight: 600;
+    color: var(--text3); letter-spacing: 0.5px; text-align: center;
+    border-bottom: 2px solid var(--border);
   }
-  .tgl.active { background: rgba(0,229,255,0.15); border-color: var(--cyan); color: var(--cyan); }
-  .ctrl-hint { font-size: 9px; color: var(--text3); }
+  .col-ideal { color: var(--cyan); }
+  .col-best  { color: var(--green); }
+  .col-good  { color: var(--amber); }
+  .threshold-tbl tbody tr:hover td { background: rgba(255,255,255,0.02); }
+  .threshold-tbl tbody td {
+    padding: 7px 3px; border-bottom: 1px solid rgba(255,255,255,0.04); text-align: center;
+  }
+  .th-param { text-align: left !important; font-weight: 600; font-size: 12px; padding-left: 2px !important; white-space: nowrap; }
+  .th-num {
+    width: 60px; background: var(--bg); border: 1px solid var(--border);
+    color: var(--text); padding: 5px 4px; border-radius: 5px;
+    font-size: 12px; font-family: 'Roboto Mono', monospace; text-align: center;
+  }
+  .th-num:focus { outline: none; border-color: var(--cyan); }
+  .th-num.best { border-color: rgba(0,230,118,0.3); }
+  .th-num.best:focus { border-color: var(--green); }
+  .th-num.good { border-color: rgba(255,171,0,0.3); }
+  .th-num.good:focus { border-color: var(--amber); }
+  .settings-actions {
+    display: flex; gap: 10px; margin-top: 16px;
+    justify-content: flex-end; align-items: center;
+  }
+  #settingsSaveStatus { font-size: 11px; flex: 1; }
+  .btn-save {
+    background: var(--cyan); color: #001; border: none; border-radius: 7px;
+    padding: 9px 18px; font-size: 12px; font-weight: 800; cursor: pointer; letter-spacing: 0.5px;
+  }
+  .btn-save:hover { opacity: 0.88; }
+  .btn-reset {
+    background: transparent; color: var(--text2); border: 1px solid var(--border);
+    border-radius: 7px; padding: 9px 16px; font-size: 12px; font-weight: 700; cursor: pointer;
+  }
+  /* ── USER MANAGEMENT ────────────────────────────────────── */
+  #userMgmtSection { margin-top: 22px; }
+  .user-list-tbl { width: 100%; border-collapse: collapse; font-size: 12px; margin-bottom: 14px; }
+  .user-list-tbl thead th {
+    font-size: 9px; letter-spacing: 1.5px; color: var(--text2); font-weight: 700;
+    text-align: left; padding: 5px 8px; border-bottom: 1px solid var(--border);
+  }
+  .user-list-tbl tbody td { padding: 8px 8px; border-bottom: 1px solid rgba(255,255,255,0.04); }
+  .user-list-tbl tbody tr:hover td { background: rgba(255,255,255,0.02); }
+  .role-badge {
+    display: inline-block; padding: 2px 9px; border-radius: 20px;
+    font-size: 10px; font-weight: 700; letter-spacing: 0.5px;
+  }
+  .role-badge.admin  { background: rgba(0,230,118,0.12); color: var(--green); border: 1px solid rgba(0,230,118,0.3); }
+  .role-badge.viewer { background: rgba(255,171,0,0.12);  color: var(--amber); border: 1px solid rgba(255,171,0,0.3); }
+  .btn-del-user {
+    background: transparent; border: 1px solid rgba(255,80,80,0.4);
+    color: #ff5252; border-radius: 5px; padding: 3px 10px;
+    font-size: 11px; font-weight: 700; cursor: pointer; transition: all 0.2s;
+  }
+  .btn-del-user:hover { background: rgba(255,80,80,0.12); }
+  .add-user-row { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; }
+  .add-user-row .s-txt-input { flex: 1; min-width: 110px; }
+  .s-select {
+    background: var(--bg); border: 1px solid var(--border); color: var(--text);
+    padding: 8px 10px; border-radius: 6px; font-size: 13px; cursor: pointer;
+    font-family: 'Inter'; min-width: 110px;
+  }
+  .s-select:focus { outline: none; border-color: var(--cyan); }
+  .btn-add-user {
+    background: rgba(0,229,255,0.1); color: var(--cyan); border: 1px solid var(--cyan);
+    border-radius: 7px; padding: 9px 16px; font-size: 12px; font-weight: 800;
+    cursor: pointer; white-space: nowrap; transition: all 0.2s;
+  }
+  .btn-add-user:hover { background: rgba(0,229,255,0.2); }
+  #userMgmtStatus { font-size: 11px; margin-top: 8px; min-height: 16px; }
+  /* ── DOWNLOAD MODAL ──────────────────────────────────────── */
+  .dl-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.72);
+    display: none; align-items: center; justify-content: center; z-index: 1000;
+  }
+  .dl-overlay.show { display: flex; }
+  .dl-box {
+    width: min(500px, 94vw); background: var(--surface); border: 1px solid var(--border);
+    border-radius: 12px; padding: 22px; box-shadow: 0 12px 36px rgba(0,0,0,0.5);
+  }
+  .dl-box h3 { font-size: 14px; margin-bottom: 4px; letter-spacing: 0.5px; }
+  .dl-sub { font-size: 11px; color: var(--text2); margin-bottom: 14px; }
+  .dl-presets { display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; align-items: center; }
+  .dl-pre-label { font-size: 9px; letter-spacing: 1.5px; color: var(--text2); font-weight: 700; }
+  .dl-pre-btn {
+    padding: 5px 12px; border-radius: 20px; border: 1px solid var(--border);
+    background: transparent; color: var(--text2); font-size: 11px; font-weight: 600;
+    cursor: pointer; font-family: 'Inter'; transition: all 0.2s;
+  }
+  .dl-pre-btn:hover { border-color: var(--cyan); color: var(--cyan); background: rgba(0,229,255,0.07); }
+  .dl-row { display: flex; gap: 14px; margin-bottom: 12px; flex-wrap: wrap; }
+  .dl-field { display: flex; flex-direction: column; gap: 6px; flex: 1; min-width: 180px; }
+  .dl-field > label { font-size: 9px; letter-spacing: 1.5px; color: var(--text2); font-weight: 700; }
+  .dl-dt-input {
+    background: var(--bg); border: 1px solid var(--border); color: var(--text);
+    padding: 8px 10px; border-radius: 6px; font-size: 13px;
+    font-family: 'Roboto Mono', monospace; width: 100%;
+  }
+  .dl-dt-input:focus { outline: none; border-color: var(--cyan); }
+  .dl-file-info {
+    font-size: 11px; color: var(--text2); margin-bottom: 14px;
+    padding: 8px 12px; border-radius: 6px;
+    border: 1px solid rgba(0,229,255,0.2); background: rgba(0,229,255,0.04);
+  }
+  .dl-fname { color: var(--cyan); font-family: 'Roboto Mono',monospace; font-size: 12px; word-break: break-all; }
+  .dl-actions { display: flex; justify-content: flex-end; gap: 8px; }
+  .dl-cancel {
+    padding: 8px 16px; border-radius: 8px; cursor: pointer;
+    background: transparent; color: var(--text2); border: 1px solid var(--border); font-family: 'Inter';
+  }
+  .dl-go {
+    padding: 8px 18px; border-radius: 8px; cursor: pointer;
+    background: var(--cyan); color: #001; border: none;
+    font-weight: 800; font-size: 12px; font-family: 'Inter'; letter-spacing: 0.5px;
+  }
+
 </style>
 </head>
 <body>
@@ -315,6 +514,12 @@
         <div class="sub">INTELLIGENT HEALTHCARE</div>
       </div>
     </div>
+    <div class="header-actions">
+      <button class="action-btn disabled" id="downloadBtn">⬇ DOWNLOAD</button>
+      <button class="action-btn disabled" id="shareBtn">↗ SHARE</button>
+      <button class="action-btn primary" id="authBtn">🔐 AUTH</button>
+      <button class="action-btn" id="logoutBtn" title="Logout" style="display:none">⏏</button>
+    </div>
   </header>
 
   <!-- ── BODY ────────────────────────────────────────────────── -->
@@ -342,18 +547,18 @@
 
     <!-- Main content -->
     <main class="main">
-
-      <!-- Battery banner -->
-      <div class="battery-banner" id="batteryBanner">
-        <span class="bicon">🔋</span>
-        <div class="bmsg">
-          ⚠ Battery power is below 30% – please charge the battery now.
-          <small>System is running on backup power without disturbance. Charge immediately to prevent shutdown.</small>
+      <section class="view-panel active" id="panel-monitor">
+        <!-- Battery banner -->
+        <div class="battery-banner" id="batteryBanner">
+          <span class="bicon">🔋</span>
+          <div class="bmsg">
+            ⚠ Battery power is below 30% – please charge the battery now.
+            <small>System is running on backup power without disturbance. Charge immediately to prevent shutdown.</small>
+          </div>
+          <button class="bclose" id="bannerClose" title="Dismiss">✕</button>
         </div>
-        <button class="bclose" id="bannerClose" title="Dismiss">✕</button>
-      </div>
 
-      <!-- KPI Row 1 -->
+        <!-- KPI Row 1 -->
       <div class="kpi-row">
         <div class="kpi-card" id="card-temp" style="--accent: var(--temp-c)">
           <div class="kpi-top">
@@ -458,49 +663,269 @@
         <div style="flex:1"></div>
       </div>
 
-      <!-- Charts -->
-      <div class="charts-row">
-        <div class="chart-card trend">
-          <div class="chart-title">TREND – TEMPERATURE & HUMIDITY (10 min)</div>
-          <canvas id="trendCanvas"></canvas>
-        </div>
-        <div class="chart-card pm">
-          <div class="chart-title">PARTICULATE MATTER (µg/m³)</div>
-          <div class="pm-bars" id="pmBars">
-            <div class="pm-row">
-              <div class="pm-row-top">
-                <span class="pm-row-label">PM1</span>
-                <span class="pm-row-value" id="pm1-bar-val" style="color:var(--pm1-c)">7.2</span>
+        <!-- Charts -->
+        <div class="charts-row">
+          <div class="chart-card trend">
+            <div class="chart-title">TREND – TEMPERATURE & HUMIDITY (10 min)</div>
+            <canvas id="trendCanvas"></canvas>
+          </div>
+          <div class="chart-card pm">
+            <div class="chart-title">PARTICULATE MATTER (µg/m³)</div>
+            <div class="pm-bars" id="pmBars">
+              <div class="pm-row">
+                <div class="pm-row-top">
+                  <span class="pm-row-label">PM1</span>
+                  <span class="pm-row-value" id="pm1-bar-val" style="color:var(--pm1-c)">7.2</span>
+                </div>
+                <div class="pm-bar-bg"><div class="pm-bar-fill" id="pm1-fill" style="width:7.2%;background:var(--pm1-c)"></div></div>
               </div>
-              <div class="pm-bar-bg"><div class="pm-bar-fill" id="pm1-fill" style="width:7.2%;background:var(--pm1-c)"></div></div>
-            </div>
-            <div class="pm-row">
-              <div class="pm-row-top">
-                <span class="pm-row-label">PM2.5</span>
-                <span class="pm-row-value" id="pm25-bar-val" style="color:var(--pm25-c)">13.8</span>
+              <div class="pm-row">
+                <div class="pm-row-top">
+                  <span class="pm-row-label">PM2.5</span>
+                  <span class="pm-row-value" id="pm25-bar-val" style="color:var(--pm25-c)">13.8</span>
+                </div>
+                <div class="pm-bar-bg"><div class="pm-bar-fill" id="pm25-fill" style="width:13.8%;background:var(--pm25-c)"></div></div>
               </div>
-              <div class="pm-bar-bg"><div class="pm-bar-fill" id="pm25-fill" style="width:13.8%;background:var(--pm25-c)"></div></div>
-            </div>
-            <div class="pm-row">
-              <div class="pm-row-top">
-                <span class="pm-row-label">PM10</span>
-                <span class="pm-row-value" id="pm10-bar-val" style="color:var(--pm10-c)">22.5</span>
+              <div class="pm-row">
+                <div class="pm-row-top">
+                  <span class="pm-row-label">PM10</span>
+                  <span class="pm-row-value" id="pm10-bar-val" style="color:var(--pm10-c)">22.5</span>
+                </div>
+                <div class="pm-bar-bg"><div class="pm-bar-fill" id="pm10-fill" style="width:22.5%;background:var(--pm10-c)"></div></div>
               </div>
-              <div class="pm-bar-bg"><div class="pm-bar-fill" id="pm10-fill" style="width:22.5%;background:var(--pm10-c)"></div></div>
-            </div>
 
-            <!-- Battery trend bar — NEW -->
-            <div class="pm-row" style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border)">
-              <div class="pm-row-top">
-                <span class="pm-row-label">🔋 BATTERY</span>
-                <span class="pm-row-value" id="bat-bar-val" style="color:var(--bat-red)">24%</span>
+              <!-- Battery trend bar — NEW -->
+              <div class="pm-row" style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border)">
+                <div class="pm-row-top">
+                  <span class="pm-row-label">🔋 BATTERY</span>
+                  <span class="pm-row-value" id="bat-bar-val" style="color:var(--bat-red)">24%</span>
+                </div>
+                <div class="pm-bar-bg"><div class="pm-bar-fill" id="bat-fill" style="width:24%;background:var(--bat-red)"></div></div>
               </div>
-              <div class="pm-bar-bg"><div class="pm-bar-fill" id="bat-fill" style="width:24%;background:var(--bat-red)"></div></div>
             </div>
           </div>
         </div>
-      </div>
+      </section>
+
+      <section class="view-panel" id="panel-alarms">
+        <div class="panel-card">
+          <div class="panel-header">
+            <div>
+              <div class="panel-title">ALARM LOG</div>
+              <div class="panel-subtitle">Recent threshold violations and warnings</div>
+            </div>
+          </div>
+          <div class="alarm-list" id="alarmList">
+            <div style="color:var(--text3);font-size:12px;padding:8px">Loading alarms…</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="view-panel" id="panel-history">
+        <div class="panel-card">
+          <div class="panel-header">
+            <div>
+              <div class="panel-title">HISTORY</div>
+              <div class="panel-subtitle">Telemetry samples — last 24 hours</div>
+            </div>
+          </div>
+          <div class="history-table">
+            <table>
+              <thead>
+                <tr><th>Time</th><th>Temp (°C)</th><th>Humidity (%)</th><th>PM2.5 (µg/m³)</th><th>CO₂ (ppm)</th></tr>
+              </thead>
+              <tbody id="historyBody">
+                <tr><td colspan="5" style="color:var(--text3)">Loading history…</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section class="view-panel" id="panel-settings">
+        <div class="panel-card">
+          <div class="panel-header">
+            <div>
+              <div class="panel-title">SETTINGS</div>
+              <div class="panel-subtitle">Device configuration, sensor thresholds &amp; alert levels</div>
+            </div>
+            <div class="auth-note" id="settingsAuthBadge">🔐 Authenticate to save changes</div>
+          </div>
+
+          <div class="settings-body">
+
+            <!-- ── Device Configuration ─────────────────────── -->
+            <div>
+              <div class="s-section-hdr">DEVICE CONFIGURATION</div>
+              <div class="device-cfg-row">
+                <div class="device-field">
+                  <label>DEVICE TYPE</label>
+                  <div class="dtype-toggle">
+                    <button class="dtype-btn active" id="typeOT" onclick="setDeviceType('OT')">🏥 OT</button>
+                    <button class="dtype-btn" id="typeICU" onclick="setDeviceType('ICU')">🛏️ ICU</button>
+                  </div>
+                </div>
+                <div class="device-field" style="flex:3">
+                  <label>DEVICE / ROOM NAME <span style="font-weight:400;color:var(--text3)">(used in downloaded filename)</span></label>
+                  <input class="s-txt-input" id="deviceNameInput" type="text"
+                         placeholder="e.g. OT-Block-A-Room1"
+                         oninput="saveDeviceConfig()" />
+                </div>
+              </div>
+            </div>
+
+            <!-- ── Sensor Thresholds ────────────────────────── -->
+            <div>
+              <div class="s-section-hdr">
+                SENSOR THRESHOLDS
+                <span class="hdr-hint">★ Best = Level 1 (Ideal range) &nbsp;|&nbsp; ✓ Good = Level 2 (Ready to Use) &nbsp;|&nbsp; Warning triggered outside Good range</span>
+              </div>
+              <table class="threshold-tbl">
+                <thead>
+                  <tr class="tbl-tier">
+                    <th style="text-align:left;width:140px"></th>
+                    <th class="col-ideal">◎ IDEAL</th>
+                    <th class="col-best" colspan="2">★ BEST &nbsp;— Level 1</th>
+                    <th class="col-good" colspan="2">✓ GOOD &nbsp;— Level 2</th>
+                  </tr>
+                  <tr class="tbl-sub">
+                    <th style="text-align:left">PARAMETER</th>
+                    <th>Nominal</th>
+                    <th>Low</th><th>High</th>
+                    <th>Low</th><th>High</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td class="th-param">🌡️ Temperature (°C)</td>
+                    <td><input class="th-num" id="th_temp_nominal" type="number" step="0.5" /></td>
+                    <td><input class="th-num best" id="th_temp_best_lo" type="number" step="0.5" /></td>
+                    <td><input class="th-num best" id="th_temp_best_hi" type="number" step="0.5" /></td>
+                    <td><input class="th-num good" id="th_temp_good_lo" type="number" step="0.5" /></td>
+                    <td><input class="th-num good" id="th_temp_good_hi" type="number" step="0.5" /></td>
+                  </tr>
+                  <tr>
+                    <td class="th-param">💧 Humidity (%)</td>
+                    <td><input class="th-num" id="th_hum_nominal" type="number" step="0.5" /></td>
+                    <td><input class="th-num best" id="th_hum_best_lo" type="number" step="0.5" /></td>
+                    <td><input class="th-num best" id="th_hum_best_hi" type="number" step="0.5" /></td>
+                    <td><input class="th-num good" id="th_hum_good_lo" type="number" step="0.5" /></td>
+                    <td><input class="th-num good" id="th_hum_good_hi" type="number" step="0.5" /></td>
+                  </tr>
+                  <tr>
+                    <td class="th-param">🌫️ PM1 (µg/m³)</td>
+                    <td><input class="th-num" id="th_pm1_nominal" type="number" step="0.5" /></td>
+                    <td><span style="color:var(--text3);font-size:12px">—</span></td>
+                    <td><input class="th-num best" id="th_pm1_best_hi" type="number" step="0.5" /></td>
+                    <td><span style="color:var(--text3);font-size:12px">—</span></td>
+                    <td><input class="th-num good" id="th_pm1_good_hi" type="number" step="0.5" /></td>
+                  </tr>
+                  <tr>
+                    <td class="th-param">☁️ PM2.5 (µg/m³)</td>
+                    <td><input class="th-num" id="th_pm25_nominal" type="number" step="0.5" /></td>
+                    <td><span style="color:var(--text3);font-size:12px">—</span></td>
+                    <td><input class="th-num best" id="th_pm25_best_hi" type="number" step="0.5" /></td>
+                    <td><span style="color:var(--text3);font-size:12px">—</span></td>
+                    <td><input class="th-num good" id="th_pm25_good_hi" type="number" step="0.5" /></td>
+                  </tr>
+                  <tr>
+                    <td class="th-param">🌪️ PM10 (µg/m³)</td>
+                    <td><input class="th-num" id="th_pm10_nominal" type="number" step="0.5" /></td>
+                    <td><span style="color:var(--text3);font-size:12px">—</span></td>
+                    <td><input class="th-num best" id="th_pm10_best_hi" type="number" step="0.5" /></td>
+                    <td><span style="color:var(--text3);font-size:12px">—</span></td>
+                    <td><input class="th-num good" id="th_pm10_good_hi" type="number" step="0.5" /></td>
+                  </tr>
+                </tbody>
+              </table>
+              <div class="settings-actions">
+                <span id="settingsSaveStatus"></span>
+                <button class="btn-reset" onclick="resetThresholds()">↺ RESET DEFAULTS</button>
+                <button class="btn-save" id="saveSettingsBtn" onclick="saveSettings()">💾 SAVE THRESHOLDS</button>
+              </div>
+            </div>
+
+            <!-- ── USER MANAGEMENT (admin only) ───────────────────── -->
+            <div id="userMgmtSection" style="display:none; margin-top:22px;">
+              <div class="s-section-hdr">
+                <span>USER MANAGEMENT</span>
+                <span class="hdr-hint">👤 Add or remove users · admin access only</span>
+              </div>
+              <table class="user-list-tbl">
+                <thead>
+                  <tr>
+                    <th>USERNAME</th>
+                    <th>ROLE</th>
+                    <th style="width:60px"></th>
+                  </tr>
+                </thead>
+                <tbody id="userListBody">
+                  <tr><td colspan="3" style="color:var(--text3);font-size:11px;padding:12px 8px;">Loading users…</td></tr>
+                </tbody>
+              </table>
+              <div class="add-user-row">
+                <input class="s-txt-input" id="newUsername" type="text" placeholder="Username" autocomplete="off" />
+                <input class="s-txt-input" id="newPassword" type="password" placeholder="Password" autocomplete="new-password" />
+                <select class="s-select" id="newRole">
+                  <option value="viewer">👁 Viewer</option>
+                  <option value="admin">🔑 Admin</option>
+                </select>
+                <button class="btn-add-user" onclick="addUser()">＋ ADD USER</button>
+              </div>
+              <div id="userMgmtStatus"></div>
+            </div>
+
+          </div><!-- /.settings-body -->
+        </div>
+      </section>
     </main>
+  </div>
+
+  <div class="auth-overlay" id="authOverlay">
+    <div class="auth-modal">
+      <h3>Authentication Required</h3>
+      <p id="authMessage">Only authorized users may download, share, or change settings.</p>
+      <div class="auth-grid">
+        <input class="auth-input" id="authUsername" type="text" placeholder="Username" />
+        <input class="auth-input" id="authInput" type="password" placeholder="Password" />
+      </div>
+      <div class="auth-actions">
+        <button class="cancel" id="authCancel">Cancel</button>
+        <button class="verify" id="authVerify">Verify</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── DOWNLOAD MODAL ───────────────────────────────────── -->
+  <div class="dl-overlay" id="dlOverlay">
+    <div class="dl-box">
+      <h3>📥 DOWNLOAD DATA EXPORT</h3>
+      <p class="dl-sub">Choose a date range. The CSV will include all sensor readings for the selected period.</p>
+      <div class="dl-presets">
+        <span class="dl-pre-label">QUICK:</span>
+        <button class="dl-pre-btn" onclick="setDlPreset(1)">Last 1 hr</button>
+        <button class="dl-pre-btn" onclick="setDlPreset(24)">Last 24 hrs</button>
+        <button class="dl-pre-btn" onclick="setDlPreset(168)">Last 7 days</button>
+        <button class="dl-pre-btn" onclick="setDlPreset(720)">Last 30 days</button>
+      </div>
+      <div class="dl-row">
+        <div class="dl-field">
+          <label>FROM DATE &amp; TIME</label>
+          <input type="datetime-local" class="dl-dt-input" id="dlStart" onchange="updateDlFilename()" />
+        </div>
+        <div class="dl-field">
+          <label>TO DATE &amp; TIME</label>
+          <input type="datetime-local" class="dl-dt-input" id="dlEnd" onchange="updateDlFilename()" />
+        </div>
+      </div>
+      <div class="dl-file-info">
+        📄 Output file: <span class="dl-fname" id="dlFilename">—</span>
+      </div>
+      <div class="dl-actions">
+        <button class="dl-cancel" onclick="hideDlModal()">Cancel</button>
+        <button class="dl-go" onclick="doDownload()">⬇ DOWNLOAD CSV</button>
+      </div>
+    </div>
   </div>
 
   <!-- ── STATUS BAR ─────────────────────────────────────────── -->
@@ -554,31 +979,6 @@
   </footer>
 </div>
 
-<!-- ── CONTROLS PANEL ──────────────────────────────────────── -->
-<div class="controls">
-  <h4>🎮 LIVE SIMULATOR CONTROLS</h4>
-  <div class="ctrl-row">
-    <label>Battery %</label>
-    <input type="range" id="batSlider" min="0" max="100" value="24" />
-    <span class="val" id="batSliderVal">24%</span>
-  </div>
-  <div class="ctrl-row">
-    <label>Temperature</label>
-    <input type="range" id="tempSlider" min="15" max="35" value="22" step="0.1"/>
-    <span class="val" id="tempSliderVal">22°C</span>
-  </div>
-  <div class="ctrl-row">
-    <label>PM2.5</label>
-    <input type="range" id="pm25Slider" min="0" max="200" value="14"/>
-    <span class="val" id="pm25SliderVal">14</span>
-  </div>
-  <div class="toggle-btn">
-    <button class="tgl" id="tglMains" onclick="togglePower('MAINS')">🔌 MAINS</button>
-    <button class="tgl active" id="tglBat" onclick="togglePower('BATTERY')">🔋 BATTERY</button>
-    <button class="tgl" id="tglCharge" onclick="toggleCharging()">⚡ CHARGING</button>
-  </div>
-  <div class="ctrl-hint">↑ Move sliders to simulate live sensor data</div>
-</div>
 
 <script>
 // ── State ─────────────────────────────────────────────────────
@@ -603,20 +1003,532 @@ document.getElementById('bannerClose').onclick = () => {
   document.getElementById('batteryBanner').classList.add('hidden');
 };
 
-// ── Power toggle ───────────────────────────────────────────────
-let isCharging = false;
-function togglePower(src) {
-  state.powerSource = src;
-  document.getElementById('tglMains').classList.toggle('active', src === 'MAINS');
-  document.getElementById('tglBat').classList.toggle('active', src === 'BATTERY');
-  updateUI();
+// ── API base URL (single place to change if port shifts) ──────
+const API_BASE = 'http://localhost:8001';
+
+// ── Authentication guard ──────────────────────────────────────
+let isAuthenticated = false;
+let userRole = '';   // 'admin' | 'viewer' | ''
+
+// ── Device config (localStorage) ─────────────────────────────
+let deviceConfig = { type: 'OT', name: '' };
+
+// ── Local threshold state (used by updateUI + user-settable) ──
+let thresholds = {
+  temp_nominal: 21,
+  temp_warn_lo: 20, temp_warn_hi: 24,
+  temp_alarm_lo: 18, temp_alarm_hi: 26,
+  hum_nominal: 52,
+  hum_warn_lo: 45, hum_warn_hi: 55,
+  hum_alarm_lo: 40, hum_alarm_hi: 60,
+  pm1_warn_hi: 5,   pm1_alarm_hi: 10,
+  pm25_warn_hi: 12, pm25_alarm_hi: 25,
+  pm10_warn_hi: 20, pm10_alarm_hi: 50,
+};
+
+const TH_DEFAULTS = {
+  temp_nominal: 21, temp_warn_lo: 20, temp_warn_hi: 24, temp_alarm_lo: 18, temp_alarm_hi: 26,
+  hum_nominal: 52,  hum_warn_lo: 45,  hum_warn_hi: 55,  hum_alarm_lo: 40,  hum_alarm_hi: 60,
+  pm1_nominal: 3,   pm1_warn_hi: 5,   pm1_alarm_hi: 10,
+  pm25_nominal: 5,  pm25_warn_hi: 12, pm25_alarm_hi: 25,
+  pm10_nominal: 10, pm10_warn_hi: 20, pm10_alarm_hi: 50,
+};
+
+function calcLevel(v, warnLo, warnHi, alarmLo, alarmHi) {
+  if (alarmLo !== null && v < alarmLo) return 'alarm';
+  if (alarmHi !== null && v > alarmHi) return 'alarm';
+  if (warnLo  !== null && v < warnLo)  return 'warning';
+  if (warnHi  !== null && v > warnHi)  return 'warning';
+  return 'normal';
 }
-function toggleCharging() {
-  isCharging = !isCharging;
-  state.charging = isCharging;
-  document.getElementById('tglCharge').classList.toggle('active', isCharging);
-  updateUI();
+
+function disableSensitiveActions() {
+  isAuthenticated = false; userRole = '';
+  document.getElementById('downloadBtn').classList.add('disabled');
+  document.getElementById('shareBtn').classList.add('disabled');
+  document.getElementById('authBtn').textContent = '🔐 AUTH';
+  document.getElementById('authBtn').style.background = '';
+  document.getElementById('logoutBtn').style.display = 'none';
+  applyRoleUI();
 }
+
+function showAuthModal(message = 'Only authorized users may download, share, or change settings.') {
+  document.getElementById('authMessage').textContent = message;
+  document.getElementById('authOverlay').classList.add('show');
+  document.getElementById('authUsername').value = '';
+  document.getElementById('authInput').value = '';
+  document.getElementById('authUsername').focus();
+}
+
+function hideAuthModal() {
+  document.getElementById('authOverlay').classList.remove('show');
+}
+
+function enableSensitiveActions(role) {
+  isAuthenticated = true; userRole = role || 'viewer';
+  document.getElementById('downloadBtn').classList.remove('disabled');
+  document.getElementById('shareBtn').classList.remove('disabled');
+  const btn = document.getElementById('authBtn');
+  if (userRole === 'admin') {
+    btn.textContent = '🔑 ADMIN';
+    btn.style.background = 'rgba(0,230,118,0.15)';
+    btn.style.borderColor = 'var(--green)';
+    btn.style.color = 'var(--green)';
+  } else {
+    btn.textContent = '👁 VIEWER';
+    btn.style.background = 'rgba(255,171,0,0.12)';
+    btn.style.borderColor = 'var(--amber)';
+    btn.style.color = 'var(--amber)';
+  }
+  document.getElementById('logoutBtn').style.display = '';
+  applyRoleUI();
+}
+
+function applyRoleUI() {
+  const isAdmin = userRole === 'admin';
+  // Settings: show Save button and enable inputs only for admin
+  const saveBtn = document.getElementById('saveSettingsBtn') ||
+                  document.querySelector('.btn-save');
+  if (saveBtn) saveBtn.style.display = isAdmin ? '' : 'none';
+  document.querySelectorAll('.th-num, .dtype-btn').forEach(el => {
+    el.disabled = !isAdmin;
+    el.style.opacity = isAdmin ? '' : '0.45';
+    el.style.cursor  = isAdmin ? '' : 'not-allowed';
+  });
+  // Device name input: admin only (exclude user management inputs)
+  const devName = document.getElementById('deviceNameInput');
+  if (devName) { devName.disabled = !isAdmin; devName.style.opacity = isAdmin ? '' : '0.45'; devName.style.cursor = isAdmin ? '' : 'not-allowed'; }
+  // User management section: admin only
+  const umSection = document.getElementById('userMgmtSection');
+  if (umSection) {
+    umSection.style.display = isAdmin ? '' : 'none';
+    if (isAdmin) loadUserList();
+  }
+  const badge = document.getElementById('settingsAuthBadge');
+  if (badge) {
+    if (!isAuthenticated) {
+      badge.textContent = '🔐 Authenticate to save changes';
+      badge.style.color = 'var(--amber)';
+    } else if (isAdmin) {
+      badge.textContent = '🔑 Admin — full access';
+      badge.style.color = 'var(--green)';
+    } else {
+      badge.textContent = '👁 Viewer — read-only settings';
+      badge.style.color = 'var(--amber)';
+    }
+  }
+}
+
+async function checkAuthStatus() {
+  try {
+    const r = await fetch(`${API_BASE}/auth/me`, { credentials: 'include' });
+    if (r.ok) {
+      const data = await r.json().catch(() => ({}));
+      enableSensitiveActions(data.role || 'viewer');
+      return;
+    }
+    disableSensitiveActions();
+  } catch (err) {
+    disableSensitiveActions();
+  }
+}
+
+async function verifyLogin() {
+  const username = document.getElementById('authUsername').value.trim();
+  const password = document.getElementById('authInput').value.trim();
+
+  if (!username || !password) {
+    showAuthModal('Please enter both username and password.');
+    return;
+  }
+
+  try {
+    const response = await fetch(`${API_BASE}/auth/login`, {
+      method: 'POST', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password })
+    });
+
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      showAuthModal(data.detail || 'Authentication failed.');
+      return;
+    }
+
+    enableSensitiveActions(data.role || 'viewer');
+    hideAuthModal();
+  } catch (err) {
+    showAuthModal('Unable to reach the authentication server.');
+  }
+}
+
+document.getElementById('authBtn').addEventListener('click', () => showAuthModal());
+document.getElementById('authCancel').addEventListener('click', hideAuthModal);
+document.getElementById('authVerify').addEventListener('click', verifyLogin);
+
+async function doLogout() {
+  try { await fetch(`${API_BASE}/auth/logout`, { method: 'POST', credentials: 'include' }); } catch(e) {}
+  disableSensitiveActions();
+}
+document.getElementById('logoutBtn').addEventListener('click', doLogout);
+
+// ── Device config ─────────────────────────────────────────────
+function loadDeviceConfig() {
+  try {
+    const saved = localStorage.getItem('ot_device_config');
+    if (saved) deviceConfig = { ...deviceConfig, ...JSON.parse(saved) };
+  } catch(e) {}
+  document.getElementById('deviceNameInput').value = deviceConfig.name;
+  setDeviceType(deviceConfig.type, false);
+}
+
+function saveDeviceConfig() {
+  deviceConfig.name = document.getElementById('deviceNameInput').value.trim();
+  try { localStorage.setItem('ot_device_config', JSON.stringify(deviceConfig)); } catch(e) {}
+  updateDlFilename();
+}
+
+function setDeviceType(type, doSave = true) {
+  deviceConfig.type = type;
+  document.getElementById('typeOT').classList.toggle('active', type === 'OT');
+  document.getElementById('typeICU').classList.toggle('active', type === 'ICU');
+  if (doSave) saveDeviceConfig();
+}
+
+// ── Threshold settings ────────────────────────────────────────
+function _setInput(id, v) {
+  const el = document.getElementById(id);
+  if (el && v != null) el.value = v;
+}
+function _getInput(id) {
+  const v = document.getElementById(id)?.value;
+  return (v !== '' && v != null) ? parseFloat(v) : null;
+}
+
+function populateThresholdInputs(apiData) {
+  const t  = apiData.temperature_c         || {};
+  const h  = apiData.relative_humidity_pct || {};
+  const p1 = apiData.pm1_ugm3              || {};
+  const p25= apiData.pm25_ugm3             || {};
+  const p10= apiData.pm10_ugm3             || {};
+
+  _setInput('th_temp_nominal',  t.nominal);
+  _setInput('th_temp_best_lo',  t.warning_low);
+  _setInput('th_temp_best_hi',  t.warning_high);
+  _setInput('th_temp_good_lo',  t.alarm_low);
+  _setInput('th_temp_good_hi',  t.alarm_high);
+
+  _setInput('th_hum_nominal',   h.nominal);
+  _setInput('th_hum_best_lo',   h.warning_low);
+  _setInput('th_hum_best_hi',   h.warning_high);
+  _setInput('th_hum_good_lo',   h.alarm_low);
+  _setInput('th_hum_good_hi',   h.alarm_high);
+
+  _setInput('th_pm1_nominal',   p1.nominal);
+  _setInput('th_pm1_best_hi',   p1.warning_high);
+  _setInput('th_pm1_good_hi',   p1.alarm_high);
+
+  _setInput('th_pm25_nominal',  p25.nominal);
+  _setInput('th_pm25_best_hi',  p25.warning_high);
+  _setInput('th_pm25_good_hi',  p25.alarm_high);
+
+  _setInput('th_pm10_nominal',  p10.nominal);
+  _setInput('th_pm10_best_hi',  p10.warning_high);
+  _setInput('th_pm10_good_hi',  p10.alarm_high);
+
+  // Sync local thresholds object for updateUI
+  if (t.warning_low  != null) thresholds.temp_warn_lo  = t.warning_low;
+  if (t.warning_high != null) thresholds.temp_warn_hi  = t.warning_high;
+  if (t.alarm_low    != null) thresholds.temp_alarm_lo = t.alarm_low;
+  if (t.alarm_high   != null) thresholds.temp_alarm_hi = t.alarm_high;
+  if (h.warning_low  != null) thresholds.hum_warn_lo   = h.warning_low;
+  if (h.warning_high != null) thresholds.hum_warn_hi   = h.warning_high;
+  if (h.alarm_low    != null) thresholds.hum_alarm_lo  = h.alarm_low;
+  if (h.alarm_high   != null) thresholds.hum_alarm_hi  = h.alarm_high;
+  if (p25.warning_high != null) thresholds.pm25_warn_hi  = p25.warning_high;
+  if (p25.alarm_high   != null) thresholds.pm25_alarm_hi = p25.alarm_high;
+  if (p1.warning_high  != null) thresholds.pm1_warn_hi   = p1.warning_high;
+  if (p1.alarm_high    != null) thresholds.pm1_alarm_hi  = p1.alarm_high;
+  if (p10.warning_high != null) thresholds.pm10_warn_hi  = p10.warning_high;
+  if (p10.alarm_high   != null) thresholds.pm10_alarm_hi = p10.alarm_high;
+}
+
+async function loadSettings() {
+  try {
+    const r = await fetch(`${API_BASE}/settings/thresholds`, { credentials: 'include' });
+    if (r.ok) { populateThresholdInputs(await r.json()); return; }
+  } catch(e) {}
+  // API offline – use defaults
+  populateThresholdInputs({
+    temperature_c:         { nominal: TH_DEFAULTS.temp_nominal, warning_low: TH_DEFAULTS.temp_warn_lo, warning_high: TH_DEFAULTS.temp_warn_hi, alarm_low: TH_DEFAULTS.temp_alarm_lo, alarm_high: TH_DEFAULTS.temp_alarm_hi },
+    relative_humidity_pct: { nominal: TH_DEFAULTS.hum_nominal,  warning_low: TH_DEFAULTS.hum_warn_lo,  warning_high: TH_DEFAULTS.hum_warn_hi,  alarm_low: TH_DEFAULTS.hum_alarm_lo,  alarm_high: TH_DEFAULTS.hum_alarm_hi  },
+    pm1_ugm3:              { nominal: TH_DEFAULTS.pm1_nominal,  warning_high: TH_DEFAULTS.pm1_warn_hi,  alarm_high: TH_DEFAULTS.pm1_alarm_hi  },
+    pm25_ugm3:             { nominal: TH_DEFAULTS.pm25_nominal, warning_high: TH_DEFAULTS.pm25_warn_hi, alarm_high: TH_DEFAULTS.pm25_alarm_hi },
+    pm10_ugm3:             { nominal: TH_DEFAULTS.pm10_nominal, warning_high: TH_DEFAULTS.pm10_warn_hi, alarm_high: TH_DEFAULTS.pm10_alarm_hi },
+  });
+}
+
+async function saveSettings() {
+  if (!isAuthenticated) { showAuthModal('Please authenticate before saving settings.'); return; }
+  const body = {
+    temperature_c:         { nominal: _getInput('th_temp_nominal'), warning_low: _getInput('th_temp_best_lo'), warning_high: _getInput('th_temp_best_hi'), alarm_low: _getInput('th_temp_good_lo'), alarm_high: _getInput('th_temp_good_hi') },
+    relative_humidity_pct: { nominal: _getInput('th_hum_nominal'),  warning_low: _getInput('th_hum_best_lo'),  warning_high: _getInput('th_hum_best_hi'),  alarm_low: _getInput('th_hum_good_lo'),  alarm_high: _getInput('th_hum_good_hi')  },
+    pm1_ugm3:              { nominal: _getInput('th_pm1_nominal'),  warning_high: _getInput('th_pm1_best_hi'),  alarm_high: _getInput('th_pm1_good_hi')  },
+    pm25_ugm3:             { nominal: _getInput('th_pm25_nominal'), warning_high: _getInput('th_pm25_best_hi'), alarm_high: _getInput('th_pm25_good_hi') },
+    pm10_ugm3:             { nominal: _getInput('th_pm10_nominal'), warning_high: _getInput('th_pm10_best_hi'), alarm_high: _getInput('th_pm10_good_hi') },
+  };
+  const status = document.getElementById('settingsSaveStatus');
+  try {
+    const r = await fetch(`${API_BASE}/settings/thresholds`, {
+      method: 'POST', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+    });
+    if (r.ok) {
+      const data = await r.json();
+      populateThresholdInputs(data.thresholds || {});
+      status.textContent = '✅ Thresholds saved.'; status.style.color = 'var(--green)';
+      setTimeout(() => { status.textContent = ''; }, 3000);
+    } else if (r.status === 401) {
+      disableSensitiveActions(); showAuthModal('Session expired. Please re-authenticate.');
+    } else {
+      status.textContent = '❌ Server error – not saved.'; status.style.color = 'var(--red)';
+    }
+  } catch(e) {
+    status.textContent = '❌ Server offline – not saved.'; status.style.color = 'var(--red)';
+  }
+}
+
+function resetThresholds() {
+  populateThresholdInputs({
+    temperature_c:         { nominal: TH_DEFAULTS.temp_nominal, warning_low: TH_DEFAULTS.temp_warn_lo, warning_high: TH_DEFAULTS.temp_warn_hi, alarm_low: TH_DEFAULTS.temp_alarm_lo, alarm_high: TH_DEFAULTS.temp_alarm_hi },
+    relative_humidity_pct: { nominal: TH_DEFAULTS.hum_nominal,  warning_low: TH_DEFAULTS.hum_warn_lo,  warning_high: TH_DEFAULTS.hum_warn_hi,  alarm_low: TH_DEFAULTS.hum_alarm_lo,  alarm_high: TH_DEFAULTS.hum_alarm_hi  },
+    pm1_ugm3:              { nominal: TH_DEFAULTS.pm1_nominal,  warning_high: TH_DEFAULTS.pm1_warn_hi,  alarm_high: TH_DEFAULTS.pm1_alarm_hi  },
+    pm25_ugm3:             { nominal: TH_DEFAULTS.pm25_nominal, warning_high: TH_DEFAULTS.pm25_warn_hi, alarm_high: TH_DEFAULTS.pm25_alarm_hi },
+    pm10_ugm3:             { nominal: TH_DEFAULTS.pm10_nominal, warning_high: TH_DEFAULTS.pm10_warn_hi, alarm_high: TH_DEFAULTS.pm10_alarm_hi },
+  });
+}
+
+// ── User Management ───────────────────────────────────────────
+
+function _umStatus(msg, ok) {
+  const el = document.getElementById('userMgmtStatus');
+  if (!el) return;
+  el.textContent = msg;
+  el.style.color = ok ? 'var(--green)' : 'var(--red)';
+  if (ok) setTimeout(() => { el.textContent = ''; }, 3000);
+}
+
+async function loadUserList() {
+  const tbody = document.getElementById('userListBody');
+  if (!tbody) return;
+  try {
+    const r = await fetch(`${API_BASE}/settings/users`, { credentials: 'include' });
+    if (!r.ok) { tbody.innerHTML = '<tr><td colspan="3" style="color:var(--text3);font-size:11px;padding:10px 8px;">Unable to load users.</td></tr>'; return; }
+    const data = await r.json();
+    const loggedIn = (await (await fetch(`${API_BASE}/auth/me`, { credentials: 'include' })).json()).username || '';
+    tbody.innerHTML = data.users.map(u => `
+      <tr>
+        <td style="font-family:'Roboto Mono',monospace;font-size:12px;">👤 ${u.username}${u.username === loggedIn ? ' <span style="font-size:9px;color:var(--text3)">(you)</span>' : ''}</td>
+        <td><span class="role-badge ${u.role}">${u.role === 'admin' ? '🔑 Admin' : '👁 Viewer'}</span></td>
+        <td style="text-align:center;">
+          ${u.username !== loggedIn ? `<button class="btn-del-user" onclick="deleteUser('${u.username}')">✕</button>` : '<span style="color:var(--text3);font-size:10px;">—</span>'}
+        </td>
+      </tr>`).join('');
+  } catch(e) {
+    tbody.innerHTML = '<tr><td colspan="3" style="color:var(--text3);font-size:11px;padding:10px 8px;">Backend offline.</td></tr>';
+  }
+}
+
+async function addUser() {
+  const username = (document.getElementById('newUsername').value || '').trim();
+  const password = (document.getElementById('newPassword').value || '').trim();
+  const role     = document.getElementById('newRole').value;
+  if (!username || !password) { _umStatus('Username and password are required.', false); return; }
+  try {
+    const r = await fetch(`${API_BASE}/settings/users`, {
+      method: 'POST', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password, role }),
+    });
+    const data = await r.json().catch(() => ({}));
+    if (r.ok) {
+      _umStatus(`✅ User "${username}" added as ${role}.`, true);
+      document.getElementById('newUsername').value = '';
+      document.getElementById('newPassword').value = '';
+      document.getElementById('newRole').value = 'viewer';
+      loadUserList();
+    } else {
+      _umStatus(`❌ ${data.detail || 'Failed to add user.'}`, false);
+    }
+  } catch(e) {
+    _umStatus('❌ Backend offline.', false);
+  }
+}
+
+async function deleteUser(username) {
+  if (!confirm(`Remove user "${username}"? This cannot be undone.`)) return;
+  try {
+    const r = await fetch(`${API_BASE}/settings/users/${encodeURIComponent(username)}`, {
+      method: 'DELETE', credentials: 'include',
+    });
+    const data = await r.json().catch(() => ({}));
+    if (r.ok) {
+      _umStatus(`✅ User "${username}" removed.`, true);
+      loadUserList();
+    } else {
+      _umStatus(`❌ ${data.detail || 'Failed to remove user.'}`, false);
+    }
+  } catch(e) {
+    _umStatus('❌ Backend offline.', false);
+  }
+}
+
+// ── Alarms panel ─────────────────────────────────────────────
+async function loadAlarms() {
+  const list = document.getElementById('alarmList');
+  if (!list) return;
+  try {
+    const r = await fetch(`${API_BASE}/alarms?limit=100&include_cleared=true`, { credentials: 'include' });
+    if (!r.ok) { list.innerHTML = '<div style="color:var(--text3);font-size:12px;padding:8px">Unable to load alarms.</div>'; return; }
+    const data = await r.json();
+    if (!data.alarms.length) { list.innerHTML = '<div style="color:var(--text3);font-size:12px;padding:8px">No alarms recorded yet.</div>'; return; }
+    list.innerHTML = data.alarms.map(a => {
+      const lvl = (a.level || '').toLowerCase();
+      const t = new Date(a.timestamp_iso).toLocaleString('en-IN', { hour12: true, dateStyle: 'short', timeStyle: 'short' });
+      return `<div class="alarm-item">
+        <div class="alarm-meta">
+          <strong>${a.parameter || '—'}</strong>
+          <span class="panel-subtitle">${t} — ${a.ot_id}</span>
+          ${a.message ? `<span style="font-size:11px;color:var(--text2)">${a.message}</span>` : ''}
+        </div>
+        <span class="alarm-level ${lvl}">${a.level}</span>
+      </div>`;
+    }).join('');
+  } catch(e) {
+    list.innerHTML = '<div style="color:var(--text3);font-size:12px;padding:8px">Backend offline.</div>';
+  }
+}
+
+// ── History panel ─────────────────────────────────────────────
+async function loadHistory() {
+  const tbody = document.getElementById('historyBody');
+  if (!tbody) return;
+  try {
+    const r = await fetch(`${API_BASE}/history?hours=24`, { credentials: 'include' });
+    if (!r.ok) { tbody.innerHTML = '<tr><td colspan="5" style="color:var(--text3)">Unable to load history.</td></tr>'; return; }
+    const data = await r.json();
+    if (!data.data.length) { tbody.innerHTML = '<tr><td colspan="5" style="color:var(--text3)">No data recorded yet.</td></tr>'; return; }
+    tbody.innerHTML = [...data.data].reverse().map(row => {
+      const t = new Date(row.timestamp_iso).toLocaleTimeString('en-IN', { hour12: true });
+      const temp = row.temperature_c?.toFixed(1) ?? '—';
+      const hum  = row.relative_humidity_pct?.toFixed(1) ?? '—';
+      const pm25 = row.pm25_ugm3?.toFixed(1) ?? '—';
+      const co2  = row.co2_ppm != null ? Math.round(row.co2_ppm) : '—';
+      return `<tr><td>${t}</td><td>${temp}</td><td>${hum}</td><td>${pm25}</td><td>${co2}</td></tr>`;
+    }).join('');
+  } catch(e) {
+    tbody.innerHTML = '<tr><td colspan="5" style="color:var(--text3)">Backend offline.</td></tr>';
+  }
+}
+
+// ── Download modal ────────────────────────────────────────────
+function _fmtDtLocal(d) {
+  const z = n => String(n).padStart(2,'0');
+  return `${d.getFullYear()}-${z(d.getMonth()+1)}-${z(d.getDate())}T${z(d.getHours())}:${z(d.getMinutes())}`;
+}
+
+function showDlModal() {
+  if (!isAuthenticated) { showAuthModal(); return; }
+  const now = new Date();
+  document.getElementById('dlStart').value = _fmtDtLocal(new Date(now - 24*3600*1000));
+  document.getElementById('dlEnd').value   = _fmtDtLocal(now);
+  updateDlFilename();
+  document.getElementById('dlOverlay').classList.add('show');
+}
+
+function hideDlModal() {
+  document.getElementById('dlOverlay').classList.remove('show');
+}
+
+function setDlPreset(hours) {
+  const now = new Date();
+  document.getElementById('dlStart').value = _fmtDtLocal(new Date(now - hours*3600*1000));
+  document.getElementById('dlEnd').value   = _fmtDtLocal(now);
+  updateDlFilename();
+}
+
+function updateDlFilename() {
+  const startVal = document.getElementById('dlStart')?.value || '';
+  const devName  = (deviceConfig.name || 'DEVICE').replace(/\s+/g,'_') || 'DEVICE';
+  const devType  = deviceConfig.type || 'OT';
+  const startStr = startVal ? startVal.replace('T','_').replace(':','').slice(0,13) : 'from';
+  const el = document.getElementById('dlFilename');
+  if (el) el.textContent = `${devType}_${devName}_${startStr}.csv`;
+}
+
+async function doDownload() {
+  const startVal = document.getElementById('dlStart').value;
+  const endVal   = document.getElementById('dlEnd').value;
+  if (!startVal || !endVal) { alert('Please select both start and end date/time.'); return; }
+  const startISO = new Date(startVal).toISOString();
+  const endISO   = new Date(endVal).toISOString();
+  try {
+    const r = await fetch(
+      `${API_BASE}/export/csv?start=${encodeURIComponent(startISO)}&end=${encodeURIComponent(endISO)}`,
+      { method: 'GET', credentials: 'include' }
+    );
+    if (!r.ok) {
+      if (r.status === 401) { hideDlModal(); disableSensitiveActions(); showAuthModal('Session expired. Please re-authenticate.'); }
+      else { alert('Unable to download data. Please try again.'); }
+      return;
+    }
+    const blob     = await r.blob();
+    const devName  = (deviceConfig.name || 'DEVICE').replace(/\s+/g,'_');
+    const devType  = deviceConfig.type || 'OT';
+    const startStr = startVal.replace('T','_').replace(':','').slice(0,13);
+    const filename = `${devType}_${devName}_${startStr}.csv`;
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = filename; a.click();
+    URL.revokeObjectURL(a.href);
+    hideDlModal();
+  } catch(e) {
+    alert('Unable to download data. Server may be offline.');
+  }
+}
+
+document.getElementById('downloadBtn').addEventListener('click', () => showDlModal());
+
+document.getElementById('shareBtn').addEventListener('click', () => {
+  if (!isAuthenticated) {
+    showAuthModal();
+    return;
+  }
+  if (navigator.share) {
+    navigator.share({ title: 'OT Monitor Report', text: 'Authorized OT history export ready.' });
+  } else {
+    window.alert('Share action is enabled only after authentication.');
+  }
+});
+
+checkAuthStatus();
+loadDeviceConfig();
+loadSettings();
+
+// ── Nav section switching ─────────────────────────────────────
+document.querySelectorAll('.nav-item').forEach(item => {
+  item.addEventListener('click', () => {
+    const target = item.getAttribute('title').toLowerCase();
+    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+    document.querySelectorAll('.view-panel').forEach(p => p.classList.remove('active'));
+    item.classList.add('active');
+    const panel = document.getElementById(`panel-${target}`);
+    if (panel) panel.classList.add('active');
+    if (target === 'settings') loadSettings();
+    if (target === 'alarms')  loadAlarms();
+    if (target === 'history') loadHistory();
+  });
+});
+
 
 // ── Battery colour helper ──────────────────────────────────────
 function batColor(pct) {
@@ -693,7 +1605,7 @@ function updateUI() {
 
   // Temperature KPI
   document.getElementById('kpi-temp').textContent = temp.toFixed(1);
-  const tempLevel = temp > 28 ? 'alarm' : temp > 26 ? 'warning' : 'normal';
+  const tempLevel = calcLevel(temp, thresholds.temp_warn_lo, thresholds.temp_warn_hi, thresholds.temp_alarm_lo, thresholds.temp_alarm_hi);
   document.getElementById('stat-temp').textContent = tempLevel === 'alarm' ? '● ALARM' : tempLevel === 'warning' ? '● WARNING' : '● NORMAL';
   document.getElementById('stat-temp').className = 'kpi-status ' + tempLevel;
   document.getElementById('card-temp').className = 'kpi-card ' + (tempLevel !== 'normal' ? tempLevel : '');
@@ -702,7 +1614,7 @@ function updateUI() {
   document.getElementById('kpi-hum').textContent = humidity.toFixed(1);
 
   // PM
-  const pm25Level = pm25 > 35 ? 'alarm' : pm25 > 25 ? 'warning' : 'normal';
+  const pm25Level = calcLevel(pm25, null, thresholds.pm25_warn_hi, null, thresholds.pm25_alarm_hi);
   document.getElementById('kpi-pm25').textContent = pm25.toFixed(1);
   document.getElementById('stat-pm25').textContent = pm25Level === 'alarm' ? '● ALARM' : pm25Level === 'warning' ? '● WARNING' : '● NORMAL';
   document.getElementById('stat-pm25').className = 'kpi-status ' + pm25Level;
@@ -736,25 +1648,6 @@ function updateUI() {
   }
 }
 
-// ── Slider controls ───────────────────────────────────────────
-document.getElementById('batSlider').oninput = function() {
-  state.battery = +this.value;
-  document.getElementById('batSliderVal').textContent = this.value + '%';
-  bannerDismissed = false;
-  updateUI();
-};
-document.getElementById('tempSlider').oninput = function() {
-  state.temp = +this.value;
-  document.getElementById('tempSliderVal').textContent = this.value + '°C';
-  updateUI();
-};
-document.getElementById('pm25Slider').oninput = function() {
-  state.pm25 = +this.value;
-  state.pm10 = +this.value * 1.6;
-  state.pm1  = +this.value * 0.5;
-  document.getElementById('pm25SliderVal').textContent = this.value;
-  updateUI();
-};
 
 // ── Clock ─────────────────────────────────────────────────────
 function updateClock() {
@@ -839,8 +1732,8 @@ function simStep() {
   if (trendData.length > TREND_SIZE) trendData.shift();
 
   // Slight flicker on sensor values
-  state.pm1  = state.pm1  * 0.95 + (document.getElementById('pm25Slider').value * 0.5 + Math.abs((Math.random()-0.5)*2)) * 0.05;
-  state.pm10 = state.pm10 * 0.95 + (document.getElementById('pm25Slider').value * 1.6 + Math.abs((Math.random()-0.5)*3)) * 0.05;
+  state.pm1  = state.pm1  * 0.95 + (state.pm25 * 0.5 + Math.abs((Math.random()-0.5)*2)) * 0.05;
+  state.pm10 = state.pm10 * 0.95 + (state.pm25 * 1.6 + Math.abs((Math.random()-0.5)*3)) * 0.05;
   state.co2  = 420 + 10*Math.sin(tick/120) + (Math.random()-0.5)*5;
   state.dp   = 8.0 + Math.sin(tick/20)*0.4 + (Math.random()-0.5)*0.3;
   state.humidity = newHum;

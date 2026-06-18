@@ -7,11 +7,13 @@ import sys
 import time
 from contextlib import asynccontextmanager
 from datetime import timedelta, timezone
+from pathlib import Path
 from typing import Set
 
 import uvicorn
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 
 sys.path.insert(0, os.path.dirname(__file__))
 
@@ -93,10 +95,21 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],   # restrict in production with specific origins
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=[
+        "http://localhost:8001",
+        "http://127.0.0.1:8001",
+    ],
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
+    allow_headers=["Content-Type", "Authorization"],
 )
+
+# ─── Serve dashboard HTML at root ────────────────────────────────────────────
+_DASHBOARD = Path(__file__).parent.parent / "dashboard_trial" / "index.html"
+
+@app.get("/", include_in_schema=False)
+async def serve_dashboard():
+    return FileResponse(_DASHBOARD, media_type="text/html")
 
 # ─── Mount REST routes via router ────────────────────────────────────────────
 from api.routes import router as api_router  # noqa: E402 (after sys.path setup)
