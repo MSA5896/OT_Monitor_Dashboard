@@ -65,3 +65,17 @@ desktop.ini
 .vscode/
 *.swp
 *.swo
+
+# SQLite runtime databases (auto-updated by backend — do not commit)
+*.db
+*.db-shm
+*.db-wal
+
+# Microsoft Office temp lock files
+~$*
+
+# Large media/doc files in repo root (committed copies live in ot_monitor/docs/)
+/*.pdf
+/*.mp4
+/*.mov
+/*.avi
