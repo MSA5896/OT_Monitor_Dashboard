@@ -1,6 +1,12 @@
 # OT Infection Monitoring System
 
-A complete real-time monitoring solution for Operating Theatre (OT) environments, designed to run natively on a Raspberry Pi / industrial panel PC as a standalone application — **not a web app**.
+> **Dashboard Versions**
+> | Version | Folder | Technology | Status |
+> |---------|--------|------------|--------|
+> | **v1** – Flutter Desktop | `ot_monitor/dashboard/` | Dart / Flutter | Production-ready desktop app |
+> | **v2** – HTML Web Trial | `ot_monitor/dashboard_trial/` | Vanilla HTML/CSS/JS | Browser-based live simulator |
+
+A complete real-time monitoring solution for Operating Theatre (OT) environments, designed to run natively on a Raspberry Pi / industrial panel PC as a standalone application.
 
 ---
 
@@ -8,29 +14,33 @@ A complete real-time monitoring solution for Operating Theatre (OT) environments
 
 ```
 ot_monitor/
-├── backend/            ← Python FastAPI gateway + alarm engine + REST API
-│   ├── main.py         ← Entry point (start this first)
-│   ├── config.py       ← YAML config loader
-│   ├── data_model.py   ← Pydantic v2 telemetry schema
-│   ├── alarm_engine.py ← Rules engine (hysteresis, combination rules)
-│   ├── storage.py      ← SQLite time-series + alarm log
-│   ├── data_sources/   ← Pluggable: simulator | websocket | serial
-│   ├── api/routes.py   ← REST: history, export CSV, alarms, settings
-│   ├── tests/          ← pytest unit tests
+├── backend/                  ← Python FastAPI gateway + alarm engine + REST API
+│   ├── main.py               ← Entry point (start this first)
+│   ├── config.py             ← YAML config loader
+│   ├── data_model.py         ← Pydantic v2 telemetry schema
+│   ├── alarm_engine.py       ← Rules engine (hysteresis, combination rules)
+│   ├── storage.py            ← SQLite time-series + alarm log
+│   ├── data_sources/         ← Pluggable: simulator | websocket | serial
+│   ├── api/routes.py         ← REST: history, export CSV, alarms, settings
+│   ├── tests/                ← pytest unit tests
 │   └── requirements.txt
 ├── simulator/
-│   └── simulator.py    ← Standalone CLI telemetry generator
+│   └── simulator.py          ← Standalone CLI telemetry generator
 ├── config/
-│   └── config.yaml     ← All thresholds & connection params (edit here)
-└── dashboard/          ← Flutter desktop app
-    └── lib/
-        ├── main.dart
-        ├── models/     ← Dart data models
-        ├── services/   ← WebSocket service
-        ├── providers/  ← DashboardProvider (state)
-        ├── screens/    ← dashboard, alarms, history, settings
-        ├── widgets/    ← header, kpi_card, trend_chart, pm_bar_chart, status_bar, alarm_banner
-        └── theme/      ← Dark medical theme
+│   └── config.yaml           ← All thresholds & connection params (edit here)
+│
+├── dashboard/                ← [VERSION 1] Flutter desktop app (Dart)
+│   └── lib/
+│       ├── main.dart
+│       ├── models/           ← Dart data models
+│       ├── services/         ← WebSocket service
+│       ├── providers/        ← DashboardProvider (state)
+│       ├── screens/          ← dashboard, alarms, history, settings
+│       ├── widgets/          ← header, kpi_card, trend_chart, pm_bar_chart, status_bar, alarm_banner
+│       └── theme/            ← Dark medical theme
+│
+└── dashboard_trial/          ← [VERSION 2] HTML/CSS/JS browser dashboard (no build step)
+    └── index.html            ← Self-contained single-file dashboard with live simulator controls
 ```
 
 ---
@@ -87,12 +97,19 @@ python main.py
 > The backend starts with `data_source.type: simulator` by default (see `config/config.yaml`).
 > Backend runs at `http://localhost:8000`. WebSocket at `ws://localhost:8000/ws`.
 
-### 3. Run the Flutter dashboard
+### 3a. Run the Flutter dashboard (Version 1)
 ```powershell
 cd d:\Private\Development\ot_monitor\dashboard
 flutter pub get
 flutter run -d windows
 ```
+
+### 3b. Open the HTML dashboard (Version 2 — no build step)
+```powershell
+# Simply open in any browser:
+Start-Process "d:\Private\Development\ot_monitor\dashboard_trial\index.html"
+```
+> **Version 2** is a self-contained `index.html` with built-in live simulator controls (battery slider, temperature, PM2.5, power-source toggle). No server or Flutter installation required.
 
 ### 4. (Optional) Run the standalone simulator
 ```powershell

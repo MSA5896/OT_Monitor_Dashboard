@@ -116,7 +116,7 @@ alarm_engine:
 # ─── Server ─────────────────────────────────────────────────────────────────
 server:
   host: "127.0.0.1"
-  port: 8000
+  port: 8001
   ws_broadcast_interval_s: 1.0   # push cadence to Flutter clients
 
 # ─── Storage ─────────────────────────────────────────────────────────────────
@@ -127,7 +127,17 @@ storage:
 
 # ─── Authentication ──────────────────────────────────────────────────────────
 auth:
-  settings_password: "OTAdmin2024"   # change before production
+  # User accounts — role: "admin" (full access) | "viewer" (download + monitor only)
+  users:
+    - username: "admin"
+      password: "OTAdmin2024"
+      role: "admin"       # full access: settings, thresholds, download, alarms
+    - username: "nurse"
+      password: "OTNurse2024"
+      role: "viewer"      # limited: download + monitor; cannot change settings
+
+  session_secret: "change-this-secret"  # CHANGE before production
+  session_expire_minutes: 60
   enable_tls: false
   cert_path: ""
   key_path: ""
@@ -146,14 +156,25 @@ cloud:
   sync_interval_s: 60
 
 # ─── Hardware Source Config (used when data_source.type = hardware) ───────────
-# Active only on Raspberry Pi. See RPi_Setup_Guide.md for full setup steps.
-# Sensors used: BME280 (I2C) | MH-Z19B (UART0) | PMS5003 (UART2)
-# SDP810 has been removed — barometric pressure is read from BME280 instead.
+# Active only on Raspberry Pi.
+# Sensors:
+#   SCD30   (I2C 0x61) → CO₂, Temperature, Humidity
+#   BME280  (I2C 0x76) → Barometric Pressure (also feeds SCD30 pressure compensation)
+#   PMS5003 (UART2)    → PM1.0, PM2.5, PM10
+#
+# I2C IMPORTANT: SCD30 requires clock stretching. Slow the I2C bus to 10kHz by
+# adding this line to /boot/firmware/config.txt and rebooting:
+#   dtparam=i2c_arm_baudrate=10000
 #
 hardware_source:
-  bme280_i2c_address: 0x76   # 0x76 = SDO pin wired to GND (default)
-                             # 0x77 = SDO pin wired to 3.3V
-  co2_port: "/dev/serial0"   # MH-Z19B CO₂ → UART0 (GPIO14=TX, GPIO15=RX)
-  pms_port: "/dev/ttyAMA1"   # PMS5003 PM  → UART2 (GPIO8=TX,  GPIO9=RX)
-  poll_interval_s: 2.0       # read all sensors every 2 seconds
-  co2_warmup_s: 180          # MH-Z19B needs 3 minutes after power-on — do not reduce
+  # SCD30 — CO₂, Temperature, Humidity (I2C 0x61, fixed address)
+  scd30_measurement_interval_s: 2    # polling cadence in seconds (2–1800)
+  scd30_temperature_offset_c: 0.0    # subtract this to correct self-heating (°C)
+
+  # BME280 — Barometric Pressure only (I2C)
+  bme280_i2c_address: 0x76           # 0x76 = SDO→GND (default) | 0x77 = SDO→3.3V
+
+  # PMS5003 — Particulate Matter (UART2)
+  pms_port: "/dev/ttyAMA1"           # UART2: GPIO8=TX (Pin24), GPIO9=RX (Pin21)
+
+  poll_interval_s: 2.0               # read all sensors every 2 seconds

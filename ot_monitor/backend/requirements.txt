@@ -17,6 +17,9 @@ aiosqlite>=0.20.0
 # YAML config
 PyYAML>=6.0
 
+# Strong authentication helpers
+bcrypt>=4.1.0
+
 # ── Serial & MQTT (used by SerialSource / hardware sensors) ───────────────────
 pyserial>=3.5            # required by MH-Z19B and PMS5003 hardware drivers
 
@@ -25,12 +28,12 @@ pyserial>=3.5            # required by MH-Z19B and PMS5003 hardware drivers
 
 # ── Raspberry Pi hardware sensor drivers ──────────────────────────────────────
 # Install these ONLY on the Raspberry Pi, not on the development machine.
-# Run: pip install -r requirements-rpi.txt   (see file below)
 #
 # Listed here as comments so IDEs can see them:
-#   smbus2>=0.4                    # SDP810 differential pressure (I2C via smbus2)
+#   smbus2>=0.4                    # I2C bus scan utility
 #   adafruit-blinka>=8.0           # CircuitPython hardware abstraction layer
-#   adafruit-circuitpython-bme280  # BME280 temperature/humidity/pressure
+#   adafruit-circuitpython-scd30   # SCD30 CO₂ + Temperature + Humidity
+#   adafruit-circuitpython-bme280  # BME280 Barometric Pressure
 
 # ── Testing ───────────────────────────────────────────────────────────────────
 pytest>=8.0

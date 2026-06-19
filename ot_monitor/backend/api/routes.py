@@ -14,46 +14,74 @@ Endpoints:
 """
 from __future__ import annotations
 
-import base64
 import csv
 import dataclasses
 import io
-import secrets
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Query, Request, Response, status
+from fastapi.responses import JSONResponse
 
 import app_state
+from auth import clear_session_cookie, require_admin, require_session, set_session_cookie
 
 router = APIRouter()
 IST = timezone(timedelta(hours=5, minutes=30))
 
 
-# ─── Auth helper ──────────────────────────────────────────────────────────────
+# ─── Auth helpers ─────────────────────────────────────────────────────────────
 
-def _check_admin(request: Request) -> None:
+def _check_admin(request: Request) -> dict:
+    """Require admin role — used for write operations (settings, ack alarms)."""
+    return require_admin(request)
+
+
+def _check_any_user(request: Request) -> dict:
+    """Require any authenticated session — used for download/export."""
+    return require_session(request)
+
+
+# ─── /auth/login ──────────────────────────────────────────────────────────────
+
+@router.post("/auth/login", tags=["auth"])
+async def login(request: Request):
     cfg = app_state.config
     if cfg is None:
         raise HTTPException(503, "Server not ready")
-    auth = request.headers.get("Authorization", "")
-    if not auth.startswith("Basic "):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Admin authentication required",
-            headers={"WWW-Authenticate": "Basic"},
-        )
-    try:
-        decoded = base64.b64decode(auth[6:]).decode()
-        _, pwd  = decoded.split(":", 1) if ":" in decoded else ("", "")
-    except Exception:
-        raise HTTPException(401, "Malformed credentials")
-    if not secrets.compare_digest(pwd.encode(), cfg.auth.settings_password.encode()):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid admin password",
-            headers={"WWW-Authenticate": "Basic"},
-        )
+
+    body = await request.json()
+    username = (body.get("username") or "").strip()
+    password = body.get("password") or ""
+
+    user = next(
+        (u for u in cfg.auth.users if u.username == username and u.password == password),
+        None,
+    )
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+
+    response = JSONResponse({"ok": True, "username": user.username, "role": user.role})
+    set_session_cookie(response, user.username, user.role)
+    return response
+
+
+@router.post("/auth/logout", tags=["auth"])
+async def logout():
+    response = JSONResponse({"ok": True})
+    clear_session_cookie(response)
+    return response
+
+
+@router.get("/auth/me", tags=["auth"])
+async def me(request: Request):
+    session = require_session(request)
+    return {
+        "ok": True,
+        "username": session["username"],
+        "role": session.get("role", "viewer"),
+        "expires_at": session["expires_at"],
+    }
 
 
 # ─── /health ──────────────────────────────────────────────────────────────────
@@ -107,10 +135,12 @@ async def get_history(
 
 @router.get("/export/csv", tags=["data"])
 async def export_csv(
+    request: Request,
     start: Optional[str]   = Query(None),
     end:   Optional[str]   = Query(None),
     hours: Optional[float] = Query(None),
 ):
+    _check_any_user(request)  # both admin and viewer can download
     storage = app_state.storage
     cfg     = app_state.config
     if storage is None or cfg is None:
@@ -149,9 +179,11 @@ async def get_alarms(
 
 @router.post("/alarms/{alarm_id}/acknowledge", tags=["alarms"])
 async def acknowledge_alarm(
+    request: Request,
     alarm_id: int,
     ack_by:   str = Query("nurse"),
 ):
+    _check_admin(request)
     storage = app_state.storage
     if storage is None:
         raise HTTPException(503, "Server not ready")
@@ -200,3 +232,61 @@ async def reload_config_route(request: Request):
     cfg = reload_config()
     app_state.config = cfg
     return {"status": "reloaded", "ot_id": cfg.ot_id}
+
+
+# ─── /settings/users ──────────────────────────────────────────────────────────
+
+@router.get("/settings/users", tags=["settings"])
+async def list_users(request: Request):
+    _check_admin(request)
+    cfg = app_state.config
+    if cfg is None:
+        raise HTTPException(503, "Server not ready")
+    return {"users": [{"username": u.username, "role": u.role} for u in cfg.auth.users]}
+
+
+@router.post("/settings/users", tags=["settings"])
+async def add_user(request: Request):
+    _check_admin(request)
+    cfg = app_state.config
+    if cfg is None:
+        raise HTTPException(503, "Server not ready")
+
+    body     = await request.json()
+    username = (body.get("username") or "").strip()
+    password = (body.get("password") or "").strip()
+    role     = (body.get("role") or "viewer").strip()
+
+    if not username or not password:
+        raise HTTPException(400, "username and password are required")
+    if role not in ("admin", "viewer"):
+        raise HTTPException(400, "role must be 'admin' or 'viewer'")
+    if any(u.username == username for u in cfg.auth.users):
+        raise HTTPException(409, f"User '{username}' already exists")
+
+    from config import UserConfig, save_users
+    cfg.auth.users.append(UserConfig(username=username, password=password, role=role))
+    save_users(cfg.auth.users)
+    return {"ok": True, "username": username, "role": role}
+
+
+@router.delete("/settings/users/{username}", tags=["settings"])
+async def remove_user(request: Request, username: str):
+    session = _check_admin(request)
+    cfg = app_state.config
+    if cfg is None:
+        raise HTTPException(503, "Server not ready")
+
+    if session["username"] == username:
+        raise HTTPException(400, "Cannot delete your own account")
+    if not any(u.username == username for u in cfg.auth.users):
+        raise HTTPException(404, f"User '{username}' not found")
+
+    remaining = [u for u in cfg.auth.users if u.username != username]
+    if not any(u.role == "admin" for u in remaining):
+        raise HTTPException(400, "Cannot remove the last admin account")
+
+    cfg.auth.users = remaining
+    from config import save_users
+    save_users(cfg.auth.users)
+    return {"ok": True, "deleted": username}

@@ -1,0 +1,12 @@
+[
+  {
+    "username": "admin",
+    "password": "OTAdmin2024",
+    "role": "admin"
+  },
+  {
+    "username": "nurse",
+    "password": "OTNurse2024",
+    "role": "viewer"
+  }
+]
