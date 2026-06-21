@@ -10,6 +10,7 @@ Scenarios:
   pm_spike     – Sudden PM2.5/PM10 spike mimicking surgical smoke.
   disconnect   – Periodic drops of ~5 s to test reconnect handling.
   sensor_fault – Random sensor fields set to None (fault injection).
+  power_loss   – Mains lost at t=20s; runs on backup battery and drains.
 """
 
 from __future__ import annotations
@@ -23,7 +24,7 @@ import time
 from datetime import datetime, timezone, timedelta
 from typing import AsyncIterator, Optional
 
-from data_model import DoorState, OTData, TelemetryPacket, DeviceHealth, SensorHealth
+from data_model import DoorState, OTData, PowerSource, TelemetryPacket, DeviceHealth, SensorHealth
 from data_sources import DataSource
 
 logger = logging.getLogger(__name__)
@@ -85,6 +86,10 @@ class SimulatorSource(DataSource):
             fault_pm   = False
             skip_packet = False
 
+            # Power: on mains by default, backup battery kept topped up (95–100%)
+            power_source = PowerSource.MAINS
+            battery_pct  = min(100.0, 97.0 + 3.0 * math.sin(t / 200))
+
             # ── Scenario overrides ────────────────────────────────────────────
             if self.scenario == "temp_drift":
                 temp += min(t / 30, 8.0)   # +8 °C over 4 min
@@ -113,6 +118,12 @@ class SimulatorSource(DataSource):
                 if random.random() < 0.10:
                     fault_pm = True
 
+            elif self.scenario == "power_loss":
+                # Mains lost at t=20s; run on battery and drain ~0.5%/s
+                if t >= 20:
+                    power_source = PowerSource.BATTERY
+                    battery_pct  = max(0.0, 100.0 - 0.5 * (t - 20))
+
             # ── Build health ────────────────────────────────────────────────
             health = DeviceHealth(
                 temperature_sensor=SensorHealth(ok=not fault_temp,
@@ -131,6 +142,8 @@ class SimulatorSource(DataSource):
                 door_state             = door,
                 co2_ppm                = round(420 + 10 * math.sin(t / 120) + random.gauss(0, 5), 1),
                 voc_ppb                = round(max(0, 50 + random.gauss(0, 10)), 1),
+                battery_pct            = round(battery_pct, 1),
+                power_source           = power_source,
             )
 
             pkt = TelemetryPacket(

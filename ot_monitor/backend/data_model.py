@@ -34,6 +34,12 @@ class NetworkStatus(str, Enum):
     CLOUD_SYNCED = "CLOUD_SYNCED"
 
 
+class PowerSource(str, Enum):
+    MAINS   = "MAINS"      # running on wall power
+    BATTERY = "BATTERY"    # running on backup battery (mains lost)
+    UNKNOWN = "UNKNOWN"
+
+
 class AlarmLevel(str, Enum):
     NORMAL  = "NORMAL"
     WARNING = "WARNING"
@@ -84,6 +90,10 @@ class OTData(BaseModel):
     # State signals
     door_state:             DoorState = DoorState.UNKNOWN
     occupancy_count:        Optional[int] = Field(None, ge=0)
+
+    # Device power / backup battery (UPS for the Raspberry Pi panel)
+    battery_pct:            Optional[float] = Field(None, ge=0, le=100, description="Backup battery charge %")
+    power_source:           PowerSource = PowerSource.UNKNOWN
 
     # Extension namespace for future sensors
     ext: Dict[str, Any] = Field(default_factory=dict)
