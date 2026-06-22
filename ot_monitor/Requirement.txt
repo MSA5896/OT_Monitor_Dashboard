@@ -1,0 +1,38 @@
+This project is for the medical sector. I want to use this in the hospital in the ICU and OT or any critcial location of the hospital so that 
+everyone is insured hospital critical area are ready for working. 
+Our project have two things one is monitor the location and there we have small robot which will maintain the critical location configuration.
+we are building first the monitoring system for that purpose is the dashboard. 
+I think there should be two window in the dashboard one for the everyone monitoring dispaly the monitoring all data and the other one should 
+have some setting which can be done by any hospital's admin and have admin credentials so that they can configure the location settings according 
+to their requirement.
+The dashboard should be designed for the 9.7 inch display or the ipad air 2 display size as we will make our monitor device display that big only.
+As you know the monitor device is not gonna use any os or anything we have to show the dashboard using some board like, RPi, STMs or any other board
+So it should not be heavy also the design should not contains any scrollable window.
+
+Current with showing the cards and live graph and slider data of each sensor. The slider which should not be present in the main window. 
+the graph and cards should be there and graph should take the whole horizontal width of the window as there no need for the slider info.
+The slider data representation of the sensor data should be in the settings instead of the main window. You don't think that everyone should
+not visible to this info. Also ther cards should be little smaller and they should take full two rows but veritically they should be a little 
+smaller.
+There is one bug is that left naviagationb bar shows two selected but I want only two options one is display and second setting and when user click on
+setting it have one login window popup when hospital admin login through it then other options visible to them only. I hope you understand 
+the requirement. Also show the battery in the top why are you showing it in the card where you see in good UI that battery is shown in the card.
+
+The Nurse could select from the critical locations list Like admin can add different critical location for monitor so that when user click 
+on the monitor option it will shows some locations and nurse or steward can select from the list shown and the monitor will shows the data 
+according to that crirtical locations' settings.
+
+The left navigation bar should be hidden there should be something which is clicked then only the left navigation bar comes above the monitor
+window it should not adjust the monitor window. so be sure the monitor design left side should have that much of spave that navigation bar 
+visible should not hide any info of the monitor dashboard. for right now keep the left navigation bar but when we put the dashboard in the our
+system we will change this okay.
+
+Background is total white or you can say whichever color but it is plain color it doesn't feel appealing there should be some appealing gradient.
+Or logo which is getting fade with gradient effect.
+
+Most Important Thing why are you not collecting all the UI design data from the software used in the medical hospital. You are just giving the
+generic design which will be given by the AI. I don't want like that be unique and be best and very appealing also with every rule regulation
+following. I don't want anything should be skipped from the ISO, FDA or any point of view.
+
+I think now you have everything. If still you need any clarification write here in one file but work which ever is best as I'm going out so 
+I can't provide yes/no input.

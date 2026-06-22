@@ -26,8 +26,10 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
 
   FlutterWindow window(project);
   Win32Window::Point origin(10, 10);
-  Win32Window::Size size(1280, 720);
-  if (!window.Create(L"ot_monitor_dashboard", origin, size)) {
+  // 9.7" panel target (iPad Air 2 logical resolution, 4:3) — the device display
+  // size for the OT monitor. Keep the dev window at this size for accurate preview.
+  Win32Window::Size size(1024, 768);
+  if (!window.Create(L"OT Infection Monitor", origin, size)) {
     return EXIT_FAILURE;
   }
   window.SetQuitOnClose(true);
