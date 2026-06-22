@@ -1,27 +1,33 @@
 import 'package:flutter/material.dart';
 import '../models/telemetry.dart';
 
-/// "Clinical Light" palette — grounded in healthcare-UX research and the
+/// "Clinical Blue" palette — a calm, hospital-appropriate look harmonised with
+/// the (bluish) product logo, grounded in real ICU monitor conventions and the
 /// IEC 60601-1-8 medical alarm colour standard:
 ///   red = critical/high-priority, amber = warning/medium, green = normal,
 ///   cyan = low-priority / informational (used here for sensor FAULT).
-/// Light, calm base for bright OT / ward environments; strong colours are
-/// reserved strictly for alarm states.
+/// Background is a soft bluish gradient (not flat white); strong colours are
+/// reserved strictly for alarm states so they stand out at a glance.
 class AppColors {
-  // Base surfaces
-  static const background = Color(0xFFF4F7FB); // pale blue-grey
+  // Bluish gradient background stops (replaces flat white)
+  static const bgTop = Color(0xFFEAF2FB);
+  static const bgMid = Color(0xFFF2F7FC);
+  static const bgBottom = Color(0xFFD9E6F6);
+
+  // Surfaces
   static const surface = Color(0xFFFFFFFF); // white cards
-  static const surfaceAlt = Color(0xFFEEF3F9); // subtle panels / table striping
-  static const border = Color(0xFFE2E8F0);
+  static const surfaceAlt = Color(0xFFEEF3F9); // subtle panels / striping
+  static const border = Color(0xFFD8E2EF);
 
   // Text
-  static const textPrimary = Color(0xFF1B2A41); // deep slate-navy
-  static const textSecondary = Color(0xFF5A6B82);
-  static const textMuted = Color(0xFF93A1B5);
+  static const textPrimary = Color(0xFF13243B); // deep slate-navy
+  static const textSecondary = Color(0xFF53657E);
+  static const textMuted = Color(0xFF8EA0B6);
 
-  // Brand accent
-  static const accent = Color(0xFF0E7C86); // teal
-  static const accentDark = Color(0xFF0A5C64);
+  // Brand accent — clinical blue (matches bluish logo)
+  static const accent = Color(0xFF1763A6);
+  static const accentDark = Color(0xFF0E4A80);
+  static const accentLight = Color(0xFF4C90CE);
 
   // IEC alarm semantics
   static const normal = Color(0xFF2E9E5B); // green
@@ -29,7 +35,7 @@ class AppColors {
   static const alarm = Color(0xFFD32F2F); // red
   static const fault = Color(0xFF00838F); // cyan (IEC low-priority/info)
 
-  // Muted, clinical per-parameter chart hues
+  // Muted, clinical per-parameter hues
   static const temp = Color(0xFFE2683C);
   static const hum = Color(0xFF2E86C1);
   static const pm1 = Color(0xFF7E57C2);
@@ -37,6 +43,14 @@ class AppColors {
   static const pm10 = Color(0xFFAD6A6C);
   static const co2 = Color(0xFF2E9E5B);
   static const voc = Color(0xFF8D6E63);
+
+  /// Soft diagonal bluish gradient for the app background.
+  static const LinearGradient backgroundGradient = LinearGradient(
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+    colors: [bgTop, bgMid, bgBottom],
+    stops: [0.0, 0.5, 1.0],
+  );
 }
 
 Color alarmColor(AlarmLevel level) {
@@ -65,7 +79,6 @@ String alarmLabel(AlarmLevel level) {
   }
 }
 
-/// System-level status banner colour (SAFE / WARNING / ALERT / FAULT).
 Color systemStatusColor(String status) {
   switch (status.toUpperCase()) {
     case 'ALERT':
@@ -102,7 +115,7 @@ ThemeData buildClinicalTheme() {
     error: AppColors.alarm,
   );
   return base.copyWith(
-    scaffoldBackgroundColor: AppColors.background,
+    scaffoldBackgroundColor: Colors.transparent,
     colorScheme: scheme,
     dividerColor: AppColors.border,
     textTheme: base.textTheme.apply(
@@ -118,7 +131,7 @@ ThemeData buildClinicalTheme() {
       ),
     ),
     appBarTheme: const AppBarTheme(
-      backgroundColor: AppColors.surface,
+      backgroundColor: Colors.transparent,
       foregroundColor: AppColors.textPrimary,
       elevation: 0,
     ),
