@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import '../models/location.dart';
 import '../models/telemetry.dart';
 import '../services/api_service.dart';
+import '../services/app_config.dart';
 import '../services/locations_service.dart';
 import '../services/websocket_service.dart';
 
@@ -48,12 +49,24 @@ class DashboardProvider extends ChangeNotifier {
       (l) => l.id == savedId,
       orElse: () => locations.first,
     );
+    // Point the live connection at the selected location's backend.
+    await _applyBackend(selectedLocation!);
     notifyListeners();
+  }
+
+  /// One backend per panel: each location has its own host/port. Switch the
+  /// live WebSocket/REST connection to the selected location's backend.
+  Future<void> _applyBackend(CriticalLocation loc) async {
+    if (AppConfig.host != loc.host || AppConfig.port != loc.port) {
+      await AppConfig.save(loc.host, loc.port);
+      ws.reconnectNow();
+    }
   }
 
   void selectLocation(CriticalLocation loc) {
     selectedLocation = loc;
     _locations.saveSelectedId(loc.id);
+    _applyBackend(loc);
     notifyListeners();
   }
 

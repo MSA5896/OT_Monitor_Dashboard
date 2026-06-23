@@ -15,21 +15,18 @@ class AppBackground extends StatelessWidget {
       decoration: const BoxDecoration(gradient: AppColors.backgroundGradient),
       child: Stack(
         children: [
-          // Faded logo watermark (placeholder). Large, very low opacity, bottom-right.
+          // Faded MSA logo watermark — very low opacity so the white logo
+          // background disappears into the light gradient, leaving a faint mark.
           Positioned(
-            right: -40,
-            bottom: -30,
-            child: ShaderMask(
-              shaderCallback: (rect) => LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  AppColors.accent.withValues(alpha: 0.06),
-                  AppColors.accent.withValues(alpha: 0.0),
-                ],
-              ).createShader(rect),
-              blendMode: BlendMode.srcIn,
-              child: const Icon(Icons.monitor_heart_rounded, size: 360),
+            right: -30,
+            bottom: -20,
+            child: Opacity(
+              opacity: 0.05,
+              child: Image.asset(
+                'assets/logo.png',
+                width: 520,
+                fit: BoxFit.contain,
+              ),
             ),
           ),
           child,
