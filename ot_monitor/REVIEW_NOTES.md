@@ -44,33 +44,35 @@ Nothing destructive was done; all changes are in version control and easy to adj
 
 ---
 
-## 3. OPEN ITEMS — need your input / a decision when you're back
+## 3. RESOLVED since first draft
 
-1. **Live data per location (important).** The backend currently streams **one device** on a
-   single WebSocket. The location selector switches the displayed *name/identity*, but the live
-   readings still come from the one connected backend. To show **different live data per
-   location**, the backend needs multi-device support (one source/stream per location, or a
-   per-location backend). I can build this next — it needs a small architecture decision:
-   *one backend per panel* vs *one central backend serving many locations*. **Which do you want?**
+- ✅ **Architecture: one backend per panel** (your call, 2026-06-22). Implemented: each critical
+  location now carries its **own backend host + port**. Selecting a location on the Monitor
+  screen **reconnects the live WebSocket/REST to that location's backend**, so each location's
+  data is fully segregated and easy to diagnose. Admins set a location's host/port in
+  **Settings → Locations → Add**. The default `OT-01` points at `localhost:8001`.
+  - *To use across the hospital:* run the backend on each panel/RPi, then add a location per
+    panel with that panel's IP (e.g. `OT-02` → `192.168.1.23:8001`). The viewer switches between
+    them from the Monitor location dropdown.
+- ✅ **Logo integrated.** The MSA Intelligent Healthcare logo (`docs/LOGO.png` → `assets/logo.png`)
+  now appears in the header, the admin login dialog, and as a faint background watermark.
 
-2. **Logo.** You said the bluish logo is coming. I used a blue placeholder mark + a faded
-   watermark. When you send the logo (PNG/SVG), I'll drop it into `assets/` and wire it into
-   the header + watermark + login dialog. (Tell me if the watermark should be centered/bigger.)
+## 4. OPEN ITEMS — still need your input
 
-3. **Nav style for production.** You said "for now keep the nav, we'll change it later." I built
+1. **Nav style for production.** You said "for now keep the nav, we'll change it later." I built
    the **overlay** version you described (hidden, opens above content). If you'd prefer a
    permanent slim rail for now instead, say the word — it's a 10-minute change.
 
-4. **Threshold editing.** Admins can currently *view* the safe/warning/alarm zones (Settings →
+2. **Threshold editing.** Admins can currently *view* the safe/warning/alarm zones (Settings →
    Sensors). Letting admins *edit* thresholds live (the backend already supports it) is easy to
    add — confirm you want per-location editable thresholds and I'll wire it up.
 
-5. **The "small robot" subsystem** (maintenance of the critical location) — noted from your
+3. **The "small robot" subsystem** (maintenance of the critical location) — noted from your
    requirement. Not started; it's a separate module. Tell me when you want to scope it.
 
 ---
 
-## 4. Compliance posture (ISO / FDA / IEC) — status & gaps
+## 5. Compliance posture (ISO / FDA / IEC) — status & gaps
 
 This is a **monitoring aid**; regulatory class depends on intended use claims. What's in place
 vs. what still needs sign-off:
@@ -96,7 +98,7 @@ vs. what still needs sign-off:
 
 ---
 
-## 5. How to preview it yourself
+## 6. How to preview it yourself
 
 1. Start the backend (one time): in `ot_monitor/backend` run `python main.py` (serves on :8001).
 2. Run the dashboard: in `ot_monitor/dashboard` run `flutter run -d windows`
@@ -108,7 +110,7 @@ A screenshot of the new monitor screen is in the PR. The window opens at the 9.7
 
 ---
 
-## 6. Where the code is
+## 7. Where the code is
 
 - All changes are committed and pushed (see the PR linked in chat). Key files:
   - Theme/gradient: `dashboard/lib/theme/app_theme.dart`, `dashboard/lib/widgets/app_background.dart`

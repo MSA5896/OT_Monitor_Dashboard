@@ -281,22 +281,11 @@ class _HeaderBarState extends State<_HeaderBar> {
             icon: const Icon(Icons.menu_rounded, color: AppColors.textSecondary),
             tooltip: 'Menu',
           ),
-          // Brand / logo placeholder (bluish) — swap for the real logo asset later.
-          Container(
-            width: 34,
-            height: 34,
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [AppColors.accent, AppColors.accentLight],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.circular(9),
-            ),
-            child: const Icon(Icons.monitor_heart_rounded,
-                color: Colors.white, size: 20),
-          ),
-          const SizedBox(width: 10),
+          // MSA Intelligent Healthcare logo
+          Image.asset('assets/logo.png', height: 38),
+          const SizedBox(width: 12),
+          Container(width: 1, height: 26, color: AppColors.border),
+          const SizedBox(width: 12),
           const Text('OT Infection Monitor',
               style: TextStyle(
                   fontSize: 16,
@@ -474,9 +463,12 @@ class _AdminLoginDialogState extends State<_AdminLoginDialog> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            Image.asset('assets/logo.png', height: 52),
+            const SizedBox(height: 14),
             const Text(
               'Settings and configuration are restricted to hospital admins.',
               style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+              textAlign: TextAlign.center,
             ),
             const SizedBox(height: 16),
             TextField(

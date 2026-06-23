@@ -248,6 +248,8 @@ class _LocationsTab extends StatelessWidget {
     final provider = context.read<DashboardProvider>();
     final idC = TextEditingController();
     final nameC = TextEditingController();
+    final hostC = TextEditingController(text: 'localhost');
+    final portC = TextEditingController(text: '8001');
     String type = 'OT';
     final result = await showDialog<bool>(
       context: context,
@@ -283,6 +285,30 @@ class _LocationsTab extends StatelessWidget {
                       .toList(),
                   onChanged: (v) => setLocal(() => type = v ?? 'OT'),
                 ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      flex: 3,
+                      child: TextField(
+                        controller: hostC,
+                        decoration: const InputDecoration(
+                            labelText: 'Backend host / IP',
+                            helperText: 'Panel running this location\'s backend',
+                            border: OutlineInputBorder()),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: TextField(
+                        controller: portC,
+                        keyboardType: TextInputType.number,
+                        decoration: const InputDecoration(
+                            labelText: 'Port', border: OutlineInputBorder()),
+                      ),
+                    ),
+                  ],
+                ),
               ],
             ),
           ),
@@ -310,8 +336,13 @@ class _LocationsTab extends StatelessWidget {
         }
         return;
       }
-      await provider.addLocation(
-          CriticalLocation(id: id, name: name, type: type));
+      await provider.addLocation(CriticalLocation(
+        id: id,
+        name: name,
+        type: type,
+        host: hostC.text.trim().isEmpty ? 'localhost' : hostC.text.trim(),
+        port: int.tryParse(portC.text.trim()) ?? 8001,
+      ));
     }
   }
 
@@ -369,7 +400,7 @@ class _LocationsTab extends StatelessWidget {
                               style: const TextStyle(
                                   fontWeight: FontWeight.w700,
                                   color: AppColors.textPrimary)),
-                          Text('${l.id}  ·  ${l.type}',
+                          Text('${l.id}  ·  ${l.type}  ·  ${l.host}:${l.port}',
                               style: const TextStyle(
                                   fontSize: 12, color: AppColors.textMuted)),
                         ],
@@ -414,34 +445,16 @@ class _AccountTab extends StatefulWidget {
 }
 
 class _AccountTabState extends State<_AccountTab> {
-  late final TextEditingController _host =
-      TextEditingController(text: AppConfig.host);
-  late final TextEditingController _port =
-      TextEditingController(text: AppConfig.port.toString());
-
-  @override
-  void dispose() {
-    _host.dispose();
-    _port.dispose();
-    super.dispose();
-  }
-
   void _snack(String m) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m)));
   }
 
-  Future<void> _save() async {
-    final port = int.tryParse(_port.text.trim()) ?? AppConfig.port;
-    await AppConfig.save(_host.text, port);
-    if (!mounted) return;
-    context.read<DashboardProvider>().reconnect();
-    _snack('Connection updated — reconnecting to ${AppConfig.wsUrl}');
-  }
-
   @override
   Widget build(BuildContext context) {
-    final api = context.watch<DashboardProvider>().api;
+    final provider = context.watch<DashboardProvider>();
+    final api = provider.api;
+    final loc = provider.selectedLocation;
     return ListView(
       padding: const EdgeInsets.all(20),
       children: [
@@ -472,33 +485,40 @@ class _AccountTabState extends State<_AccountTab> {
             ],
           ),
         ]),
-        _card('BACKEND CONNECTION', [
-          Row(
-            children: [
-              Expanded(
-                flex: 3,
-                child: TextField(
-                  controller: _host,
-                  decoration: const InputDecoration(
-                      labelText: 'Host', border: OutlineInputBorder()),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: TextField(
-                  controller: _port,
-                  keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(
-                      labelText: 'Port', border: OutlineInputBorder()),
-                ),
-              ),
-            ],
+        _card('ACTIVE BACKEND', [
+          const Text(
+            'One backend per panel: the active connection follows the selected '
+            'location. Add or edit a location\'s host/port in the Locations tab.',
+            style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
           ),
           const SizedBox(height: 12),
-          FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: AppColors.accent),
-            onPressed: _save,
-            child: const Text('Save & reconnect'),
+          Row(
+            children: [
+              const Icon(Icons.dns_rounded, color: AppColors.accent, size: 22),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(loc != null ? '${loc.name}  (${loc.id})' : '—',
+                        style: const TextStyle(
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.textPrimary)),
+                    Text(AppConfig.httpBase,
+                        style: const TextStyle(
+                            fontSize: 12, color: AppColors.textMuted)),
+                  ],
+                ),
+              ),
+              OutlinedButton.icon(
+                onPressed: () {
+                  provider.reconnect();
+                  _snack('Reconnecting to ${AppConfig.wsUrl}');
+                },
+                icon: const Icon(Icons.refresh_rounded, size: 18),
+                label: const Text('Reconnect'),
+              ),
+            ],
           ),
         ]),
       ],
