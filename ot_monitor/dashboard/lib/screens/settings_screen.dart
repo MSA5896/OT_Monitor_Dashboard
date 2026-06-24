@@ -7,59 +7,14 @@ import '../providers/dashboard_provider.dart';
 import '../services/app_config.dart';
 import '../theme/app_theme.dart';
 
-/// Admin-only configuration area (reached via the Settings login popup).
-/// Tabs: Sensors (the detailed per-sensor "slider" view, moved out of the
-/// public Monitor screen), Locations, and Account/Connection.
-class SettingsScreen extends StatelessWidget {
-  const SettingsScreen({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return const DefaultTabController(
-      length: 3,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Padding(
-            padding: EdgeInsets.fromLTRB(20, 16, 20, 0),
-            child: Text('Admin · Settings',
-                style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w800,
-                    color: AppColors.textPrimary)),
-          ),
-          TabBar(
-            isScrollable: true,
-            labelColor: AppColors.accent,
-            unselectedLabelColor: AppColors.textSecondary,
-            indicatorColor: AppColors.accent,
-            tabAlignment: TabAlignment.start,
-            tabs: [
-              Tab(text: 'Sensors'),
-              Tab(text: 'Locations'),
-              Tab(text: 'Account'),
-            ],
-          ),
-          Expanded(
-            child: TabBarView(
-              children: [
-                _SensorsTab(),
-                _LocationsTab(),
-                _AccountTab(),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
+// Admin configuration panels — composed by AdminShell's permanent sidebar:
+// SensorsPanel (per-sensor "slider" gauges), LocationsPanel, AccountPanel.
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Sensors tab — live per-sensor gauges (the relocated "slider" data).
 // ─────────────────────────────────────────────────────────────────────────────
-class _SensorsTab extends StatelessWidget {
-  const _SensorsTab();
+class SensorsPanel extends StatelessWidget {
+  const SensorsPanel({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -241,8 +196,8 @@ class _SensorGauge extends StatelessWidget {
 // ─────────────────────────────────────────────────────────────────────────────
 // Locations tab — admin manages the critical locations nurses can monitor.
 // ─────────────────────────────────────────────────────────────────────────────
-class _LocationsTab extends StatelessWidget {
-  const _LocationsTab();
+class LocationsPanel extends StatelessWidget {
+  const LocationsPanel({super.key});
 
   Future<void> _addDialog(BuildContext context) async {
     final provider = context.read<DashboardProvider>();
@@ -437,14 +392,14 @@ class _LocationsTab extends StatelessWidget {
 // ─────────────────────────────────────────────────────────────────────────────
 // Account tab — backend connection + admin session.
 // ─────────────────────────────────────────────────────────────────────────────
-class _AccountTab extends StatefulWidget {
-  const _AccountTab();
+class AccountPanel extends StatefulWidget {
+  const AccountPanel({super.key});
 
   @override
-  State<_AccountTab> createState() => _AccountTabState();
+  State<AccountPanel> createState() => _AccountPanelState();
 }
 
-class _AccountTabState extends State<_AccountTab> {
+class _AccountPanelState extends State<AccountPanel> {
   void _snack(String m) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m)));
