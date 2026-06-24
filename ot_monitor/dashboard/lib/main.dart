@@ -8,10 +8,8 @@ import 'providers/dashboard_provider.dart';
 import 'services/api_service.dart';
 import 'services/app_config.dart';
 import 'services/websocket_service.dart';
-import 'screens/alarms_screen.dart';
+import 'screens/admin_shell.dart';
 import 'screens/dashboard_screen.dart';
-import 'screens/history_screen.dart';
-import 'screens/settings_screen.dart';
 import 'theme/app_theme.dart';
 import 'widgets/app_background.dart';
 
@@ -38,10 +36,7 @@ class MyApp extends StatelessWidget {
   }
 }
 
-/// Nav destinations. Monitor + Settings are always present; Alarms + History
-/// are revealed only after an admin signs in (via the Settings login popup).
-enum NavDest { monitor, settings, alarms, history }
-
+/// Top-level switch between the public Monitor and the admin window.
 class AppShell extends StatefulWidget {
   const AppShell({super.key});
 
@@ -50,52 +45,52 @@ class AppShell extends StatefulWidget {
 }
 
 class _AppShellState extends State<AppShell> {
-  NavDest _dest = NavDest.monitor;
-  bool _navOpen = false;
+  bool _adminMode = false;
 
-  Widget _screen() {
-    switch (_dest) {
-      case NavDest.settings:
-        return const SettingsScreen();
-      case NavDest.alarms:
-        return const AlarmsScreen();
-      case NavDest.history:
-        return const HistoryScreen();
-      case NavDest.monitor:
-        return const DashboardScreen();
-    }
-  }
-
-  Future<void> _onSelect(NavDest dest) async {
+  Future<void> _enterAdmin() async {
     final provider = context.read<DashboardProvider>();
-    // Settings (and the admin-only sections) require an admin session.
-    final needsAdmin = dest != NavDest.monitor;
-    if (needsAdmin && !provider.isAdmin) {
-      setState(() => _navOpen = false);
-      final ok = await _showLoginDialog();
+    if (!provider.isAdmin) {
+      final ok = await showDialog<bool>(
+        context: context,
+        builder: (_) => const _AdminLoginDialog(),
+      );
       if (ok != true) return;
     }
-    setState(() {
-      _dest = dest;
-      _navOpen = false;
-    });
+    setState(() => _adminMode = true);
   }
 
-  Future<bool?> _showLoginDialog() {
-    return showDialog<bool>(
-      context: context,
-      builder: (_) => const _AdminLoginDialog(),
-    );
-  }
+  void _exitAdmin() => setState(() => _adminMode = false);
 
   void _signOut() {
-    final provider = context.read<DashboardProvider>();
-    provider.api.logout();
-    setState(() {
-      _dest = NavDest.monitor;
-      _navOpen = false;
-    });
+    context.read<DashboardProvider>().api.logout();
+    setState(() => _adminMode = false);
   }
+
+  @override
+  Widget build(BuildContext context) {
+    final isAdmin = context.watch<DashboardProvider>().isAdmin;
+    if (_adminMode && isAdmin) {
+      return AdminShell(onExit: _exitAdmin, onSignOut: _signOut);
+    }
+    return MonitorShell(onOpenAdmin: _enterAdmin);
+  }
+}
+
+/// Public monitor: header + live dashboard + a floating gear (admin) and a
+/// location picker overlay opened from the top-left menu.
+class MonitorShell extends StatefulWidget {
+  final VoidCallback onOpenAdmin;
+  const MonitorShell({super.key, required this.onOpenAdmin});
+
+  @override
+  State<MonitorShell> createState() => _MonitorShellState();
+}
+
+class _MonitorShellState extends State<MonitorShell> {
+  bool _locOpen = false;
+
+  void _toggleLoc() => setState(() => _locOpen = !_locOpen);
+  void _closeLoc() => setState(() => _locOpen = false);
 
   @override
   Widget build(BuildContext context) {
@@ -105,27 +100,27 @@ class _AppShellState extends State<AppShell> {
         child: SafeArea(
           child: Stack(
             children: [
-              // Main content fills the full width; the nav floats above it.
               Column(
                 children: [
-                  _HeaderBar(onMenu: () => setState(() => _navOpen = !_navOpen)),
-                  Expanded(child: _screen()),
+                  _MonitorHeader(onMenu: _toggleLoc),
+                  Expanded(child: DashboardScreen(onPickLocation: _toggleLoc)),
                 ],
               ),
-              // Nav overlay (hidden by default; opened from the header menu).
-              if (_navOpen) ...[
+              // Floating admin gear (bottom-right)
+              Positioned(
+                right: 22,
+                bottom: 22,
+                child: _GearButton(onTap: widget.onOpenAdmin),
+              ),
+              // Location picker overlay (opened from the top-left menu)
+              if (_locOpen) ...[
                 Positioned.fill(
                   child: GestureDetector(
-                    onTap: () => setState(() => _navOpen = false),
+                    onTap: _closeLoc,
                     child: Container(color: Colors.black.withValues(alpha: 0.18)),
                   ),
                 ),
-                _NavOverlay(
-                  current: _dest,
-                  isAdmin: context.watch<DashboardProvider>().isAdmin,
-                  onSelect: _onSelect,
-                  onSignOut: _signOut,
-                ),
+                _LocationOverlay(onClose: _closeLoc),
               ],
             ],
           ),
@@ -135,27 +130,45 @@ class _AppShellState extends State<AppShell> {
   }
 }
 
-/// Floating navigation panel — appears above the monitor content without
-/// resizing it. Only Monitor + Settings until an admin is signed in.
-class _NavOverlay extends StatelessWidget {
-  final NavDest current;
-  final bool isAdmin;
-  final ValueChanged<NavDest> onSelect;
-  final VoidCallback onSignOut;
-
-  const _NavOverlay({
-    required this.current,
-    required this.isAdmin,
-    required this.onSelect,
-    required this.onSignOut,
-  });
+class _GearButton extends StatelessWidget {
+  final VoidCallback onTap;
+  const _GearButton({required this.onTap});
 
   @override
   Widget build(BuildContext context) {
+    return Tooltip(
+      message: 'Admin settings',
+      child: Material(
+        color: AppColors.accent,
+        shape: const CircleBorder(),
+        elevation: 4,
+        shadowColor: AppColors.accent.withValues(alpha: 0.5),
+        child: InkWell(
+          customBorder: const CircleBorder(),
+          onTap: onTap,
+          child: const SizedBox(
+            width: 56,
+            height: 56,
+            child: Icon(Icons.settings_rounded, color: Colors.white, size: 26),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Styled critical-location picker (replaces the old dropdown).
+class _LocationOverlay extends StatelessWidget {
+  final VoidCallback onClose;
+  const _LocationOverlay({required this.onClose});
+
+  @override
+  Widget build(BuildContext context) {
+    final provider = context.watch<DashboardProvider>();
     return Align(
       alignment: Alignment.topLeft,
       child: Container(
-        width: 232,
+        width: 320,
         margin: const EdgeInsets.fromLTRB(10, 10, 0, 10),
         decoration: BoxDecoration(
           color: AppColors.surface,
@@ -170,82 +183,119 @@ class _NavOverlay extends StatelessWidget {
           ],
         ),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
           mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const SizedBox(height: 14),
-            _item(NavDest.monitor, Icons.dashboard_rounded, 'Monitor'),
-            _item(NavDest.settings, Icons.settings_rounded, 'Settings',
-                locked: !isAdmin),
-            if (isAdmin) ...[
-              const Divider(height: 18, indent: 14, endIndent: 14),
-              _item(NavDest.alarms, Icons.notifications_active_rounded, 'Alarms'),
-              _item(NavDest.history, Icons.show_chart_rounded, 'History'),
-              const Divider(height: 18, indent: 14, endIndent: 14),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
-                child: TextButton.icon(
-                  onPressed: onSignOut,
-                  icon: const Icon(Icons.logout_rounded, size: 18),
-                  label: const Text('Sign out'),
-                  style: TextButton.styleFrom(foregroundColor: AppColors.alarm),
-                ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(18, 16, 12, 8),
+              child: Row(
+                children: [
+                  const Icon(Icons.location_on_rounded,
+                      color: AppColors.accent, size: 20),
+                  const SizedBox(width: 8),
+                  const Expanded(
+                    child: Text('Select Location',
+                        style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w800,
+                            color: AppColors.textPrimary)),
+                  ),
+                  IconButton(
+                    onPressed: onClose,
+                    icon: const Icon(Icons.close_rounded, size: 20),
+                    color: AppColors.textMuted,
+                  ),
+                ],
               ),
-            ] else
-              const SizedBox(height: 8),
+            ),
+            const Divider(height: 1, color: AppColors.border),
+            Flexible(
+              child: ListView(
+                shrinkWrap: true,
+                padding: const EdgeInsets.all(10),
+                children: provider.locations.map((loc) {
+                  final selected = provider.selectedLocation?.id == loc.id;
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: Material(
+                      color: selected
+                          ? AppColors.accent.withValues(alpha: 0.10)
+                          : AppColors.surfaceAlt,
+                      borderRadius: BorderRadius.circular(12),
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(12),
+                        onTap: () {
+                          provider.selectLocation(loc);
+                          onClose();
+                        },
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 14, vertical: 12),
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 38,
+                                height: 38,
+                                decoration: BoxDecoration(
+                                  color: AppColors.accent.withValues(alpha: 0.12),
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: const Icon(Icons.meeting_room_rounded,
+                                    color: AppColors.accent, size: 20),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(loc.name,
+                                        style: const TextStyle(
+                                            fontWeight: FontWeight.w700,
+                                            fontSize: 14,
+                                            color: AppColors.textPrimary)),
+                                    Text('${loc.id}  ·  ${loc.type}',
+                                        style: const TextStyle(
+                                            fontSize: 11,
+                                            color: AppColors.textMuted)),
+                                  ],
+                                ),
+                              ),
+                              if (selected)
+                                const Icon(Icons.check_circle_rounded,
+                                    color: AppColors.accent, size: 20),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 4, 14, 14),
+              child: Text(
+                'Admins can add locations from the gear → Locations.',
+                style: TextStyle(
+                    fontSize: 11, color: AppColors.textMuted.withValues(alpha: 1)),
+              ),
+            ),
           ],
         ),
       ),
     );
   }
-
-  Widget _item(NavDest dest, IconData icon, String label, {bool locked = false}) {
-    final selected = dest == current;
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      child: Material(
-        color: selected ? AppColors.accent.withValues(alpha: 0.12) : Colors.transparent,
-        borderRadius: BorderRadius.circular(10),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(10),
-          onTap: () => onSelect(dest),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-            child: Row(
-              children: [
-                Icon(icon,
-                    size: 21,
-                    color: selected ? AppColors.accent : AppColors.textSecondary),
-                const SizedBox(width: 12),
-                Text(label,
-                    style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: selected
-                            ? AppColors.accent
-                            : AppColors.textPrimary)),
-                const Spacer(),
-                if (locked)
-                  const Icon(Icons.lock_outline_rounded,
-                      size: 15, color: AppColors.textMuted),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
 }
 
-class _HeaderBar extends StatefulWidget {
+class _MonitorHeader extends StatefulWidget {
   final VoidCallback onMenu;
-  const _HeaderBar({required this.onMenu});
+  const _MonitorHeader({required this.onMenu});
 
   @override
-  State<_HeaderBar> createState() => _HeaderBarState();
+  State<_MonitorHeader> createState() => _MonitorHeaderState();
 }
 
-class _HeaderBarState extends State<_HeaderBar> {
+class _MonitorHeaderState extends State<_MonitorHeader> {
   late Timer _clock;
   DateTime _now = DateTime.now();
 
@@ -279,9 +329,8 @@ class _HeaderBarState extends State<_HeaderBar> {
           IconButton(
             onPressed: widget.onMenu,
             icon: const Icon(Icons.menu_rounded, color: AppColors.textSecondary),
-            tooltip: 'Menu',
+            tooltip: 'Locations',
           ),
-          // MSA Intelligent Healthcare logo
           Image.asset('assets/logo.png', height: 38),
           const SizedBox(width: 12),
           Container(width: 1, height: 26, color: AppColors.border),
@@ -299,18 +348,19 @@ class _HeaderBarState extends State<_HeaderBar> {
           const SizedBox(width: 16),
           Container(width: 1, height: 26, color: AppColors.border),
           const SizedBox(width: 16),
-          Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.end,
+          // Date + time on a single line
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               Text(DateFormat('HH:mm:ss').format(_now),
                   style: const TextStyle(
                       fontSize: 15,
                       fontWeight: FontWeight.w700,
                       color: AppColors.textPrimary)),
+              const SizedBox(width: 8),
               Text(DateFormat('EEE, dd MMM').format(_now),
                   style: const TextStyle(
-                      fontSize: 10, color: AppColors.textMuted)),
+                      fontSize: 12, color: AppColors.textMuted)),
             ],
           ),
         ],
@@ -359,9 +409,6 @@ class _BatteryIndicator extends StatelessWidget {
             style: TextStyle(
                 fontSize: 14, fontWeight: FontWeight.w700, color: color),
           ),
-          const SizedBox(width: 4),
-          Text(onMains ? 'Mains' : (onBattery ? 'Batt' : ''),
-              style: const TextStyle(fontSize: 10, color: AppColors.textMuted)),
         ],
       ),
     );
@@ -407,7 +454,7 @@ class _ConnectionBadge extends StatelessWidget {
   }
 }
 
-/// Admin login popup shown when a protected section is opened.
+/// Admin login popup shown when the floating gear is tapped (if not signed in).
 class _AdminLoginDialog extends StatefulWidget {
   const _AdminLoginDialog();
 
