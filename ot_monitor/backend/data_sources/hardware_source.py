@@ -5,13 +5,13 @@ Reads three physical sensors concurrently using asyncio + thread executor,
 then packages the results into a TelemetryPacket and puts it in the queue.
 
 SENSOR CONFIGURATION:
-  ┌──────────────┬─────────────────────┬────────────────────────────────────────┐
-  │ Sensor       │ Interface           │ What it measures                       │
-  ├──────────────┼─────────────────────┼────────────────────────────────────────┤
-  │ SCD30        │ I2C 0x61  (10 kHz) │ CO₂ ppm, Temperature °C, Humidity %RH │
-  │ BME280       │ I2C 0x76  (10 kHz) │ Barometric Pressure hPa                │
-  │ PMS5003      │ UART2 /dev/ttyAMA1  │ PM1.0, PM2.5, PM10 (µg/m³)            │
-  └──────────────┴─────────────────────┴────────────────────────────────────────┘
+  ┌──────────────┬──────────────────────────────┬────────────────────────────────────────┐
+  │ Sensor       │ Interface                    │ What it measures                       │
+  ├──────────────┼──────────────────────────────┼────────────────────────────────────────┤
+  │ SCD30        │ I2C 0x61  (10 kHz)          │ CO₂ ppm, Temperature °C, Humidity %RH │
+  │ BME280       │ I2C 0x76  (10 kHz)          │ Barometric Pressure hPa                │
+  │ PMS5003      │ UART0 /dev/serial0 GPIO14/15 │ PM1.0, PM2.5, PM10 (µg/m³)            │
+  └──────────────┴──────────────────────────────┴────────────────────────────────────────┘
 
 Sensor responsibilities:
   - SCD30  → primary CO₂, Temperature, Humidity readings
@@ -29,7 +29,7 @@ Optional config.yaml overrides:
     scd30_measurement_interval_s: 2      # 2–1800 s, default 2
     scd30_temperature_offset_c:   0.0    # subtract this from SCD30 temp
     bme280_i2c_address:           0x76   # 0x76 (SDO→GND) or 0x77 (SDO→3.3V)
-    pms_port:                     "/dev/ttyAMA1"
+    pms_port:                     "/dev/serial0"  # UART0: GPIO14(TX/Pin8), GPIO15(RX/Pin10)
     poll_interval_s:              2.0
 """
 
@@ -79,13 +79,13 @@ class HardwareSource(DataSource):
             scd30_interval = int(hw.get("scd30_measurement_interval_s", 2))
             scd30_offset   = float(hw.get("scd30_temperature_offset_c", 0.0))
             bme_addr       = hw.get("bme280_i2c_address", 0x76)
-            pms_port       = hw.get("pms_port", "/dev/ttyAMA1")
+            pms_port       = hw.get("pms_port", "/dev/serial0")
             poll_s         = float(hw.get("poll_interval_s", 2.0))
         else:
             scd30_interval = 2
             scd30_offset   = 0.0
             bme_addr       = 0x76
-            pms_port       = "/dev/ttyAMA1"
+            pms_port       = "/dev/serial0"
             poll_s         = 2.0
 
         self._poll_interval = poll_s

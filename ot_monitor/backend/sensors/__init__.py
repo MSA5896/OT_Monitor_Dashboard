@@ -11,10 +11,10 @@ Usage:
     from sensors.sdp810_driver  import SDP810Driver
 """
 
-from sensors.bme280_driver  import BME280Driver
-from sensors.pms5003_driver import PMS5003Driver
-from sensors.mhz19_driver   import MHZ19Driver
-from sensors.sdp810_driver  import SDP810Driver
+from .bme280_driver  import BME280Driver
+from .pms5003_driver import PMS5003Driver
+from .mhz19_driver   import MHZ19Driver
+from .sdp810_driver  import SDP810Driver
 
 __all__ = [
     "BME280Driver",

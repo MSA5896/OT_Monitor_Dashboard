@@ -27,18 +27,28 @@ Requirements on Raspberry Pi:
 
 Prerequisite RPi setup:
     1. I2C enabled:     sudo raspi-config → Interfaces → I2C → Enable
-    2. I2C speed:       Add "dtparam=i2c_arm_baudrate=10000" to /boot/firmware/config.txt → reboot
-    3. UART2 active:    Add "dtoverlay=uart2" to /boot/firmware/config.txt → reboot
+    2. Serial port:     sudo raspi-config → Interfaces → Serial Port
+                          "Login shell over serial?" → NO
+                          "Serial port hardware enabled?" → YES
+    3. Boot config:     Add to /boot/firmware/config.txt → reboot:
+                          dtparam=i2c_arm_baudrate=10000
+                          dtoverlay=disable-bt
+                          enable_uart=1
     4. Verify I2C:      i2cdetect -y 1   (should show 0x61=SCD30, 0x76=BME280)
-    5. Verify UART2:    ls /dev/ttyAMA1  (should exist for PMS5003)
+    5. Verify UART0:    ls -la /dev/serial0  (must point to ttyAMA0, not ttyS0)
 """
 
 from __future__ import annotations
 
 import argparse
 import sys
+import os
 import time
 import logging
+
+# Ensure the backend/ directory is on the path so `from sensors.X` works
+# regardless of where this script is invoked from.
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 logging.basicConfig(
     level=logging.INFO,
@@ -143,10 +153,10 @@ def test_bme280(verbose: bool = True) -> bool:
 
 # ── PMS5003 test ──────────────────────────────────────────────────────────────
 
-def test_pms5003(port: str = "/dev/ttyAMA1", verbose: bool = True) -> bool:
-    """Test PMS5003 PM sensor on UART2 (/dev/ttyAMA1)."""
+def test_pms5003(port: str = "/dev/serial0", verbose: bool = True) -> bool:
+    """Test PMS5003 PM sensor on UART0 — GPIO14 (TXD0/Pin8) / GPIO15 (RXD0/Pin10)."""
     if verbose:
-        print(header(f"PMS5003 — PM1.0 / PM2.5 / PM10 (UART2 {port})"))
+        print(header(f"PMS5003 — PM1.0 / PM2.5 / PM10 (UART0 {port})"))
 
     try:
         from sensors.pms5003_driver import PMS5003Driver
@@ -168,12 +178,14 @@ def test_pms5003(port: str = "/dev/ttyAMA1", verbose: bool = True) -> bool:
             return True
         else:
             print(fail(f"  Read error: {reading.error}"))
-            print(warn("  Check: dtoverlay=uart2 in /boot/firmware/config.txt and ls /dev/ttyAMA1"))
+            print(warn("  Check: ls -la /dev/serial0  (must show -> ttyAMA0, not ttyS0)"))
+            print(warn("  Check: dtoverlay=disable-bt and enable_uart=1 in /boot/firmware/config.txt"))
             return False
     except Exception as exc:
         print(fail(f"  PMS5003 failed: {exc}"))
         if "No such file or directory" in str(exc):
-            print(warn("  Hint: Add 'dtoverlay=uart2' to /boot/firmware/config.txt and reboot"))
+            print(warn("  Hint: Add 'dtoverlay=disable-bt' and 'enable_uart=1' to /boot/firmware/config.txt and reboot"))
+            print(warn("  Also: raspi-config → Interface Options → Serial Port → NO login shell, YES hardware"))
         return False
 
 

@@ -174,7 +174,14 @@ hardware_source:
   # BME280 — Barometric Pressure only (I2C)
   bme280_i2c_address: 0x76           # 0x76 = SDO→GND (default) | 0x77 = SDO→3.3V
 
-  # PMS5003 — Particulate Matter (UART2)
-  pms_port: "/dev/ttyAMA1"           # UART2: GPIO8=TX (Pin24), GPIO9=RX (Pin21)
+  # PMS5003 — Particulate Matter (UART0 — primary hardware UART)
+  # Wiring: GPIO14 (TXD0, Pin 8) → PMS5003 RX
+  #         GPIO15 (RXD0, Pin 10) ← PMS5003 TX
+  # Requires in /boot/firmware/config.txt:
+  #   dtoverlay=disable-bt   ← frees UART0 from Bluetooth
+  #   enable_uart=1          ← enables PL011 on GPIO14/15
+  # Also disable serial console: raspi-config → Interface Options → Serial Port
+  #   → login shell: NO | hardware enabled: YES
+  pms_port: "/dev/serial0"           # UART0: GPIO14=TX (Pin8), GPIO15=RX (Pin10)
 
   poll_interval_s: 2.0               # read all sensors every 2 seconds

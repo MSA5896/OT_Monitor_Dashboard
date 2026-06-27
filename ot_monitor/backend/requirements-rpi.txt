@@ -5,13 +5,17 @@
 #   pip install -r requirements.txt          # install base packages first
 #   pip install -r requirements-rpi.txt      # then install RPi-specific ones
 
-# ── I2C access (SDP810 differential pressure sensor) ─────────────────────────
+# ── I2C bus access ────────────────────────────────────────────────────────────
 smbus2>=0.4
 
-# ── Adafruit CircuitPython layer (BME280 temperature/humidity/pressure) ───────
-# adafruit-blinka wraps the RPi GPIO/I2C hardware so CircuitPython libs work.
+# ── Adafruit CircuitPython layer ──────────────────────────────────────────────
+# adafruit-blinka wraps RPi GPIO/I2C so CircuitPython sensor libs work on Linux.
 adafruit-blinka>=8.0
+
+# ── SCD30 — CO₂, Temperature, Humidity (I2C 0x61) ───────────────────────────
+adafruit-circuitpython-scd30>=2.3.0
+
+# ── BME280 — Barometric Pressure (I2C 0x76) ──────────────────────────────────
 adafruit-circuitpython-bme280>=2.6.0
 
-# Note: MH-Z19B CO2 and PMS5003 PM sensors use pyserial (already in requirements.txt)
-# No additional packages needed for those two sensors.
+# Note: PMS5003 uses pyserial only (already in requirements.txt). No extra package needed.

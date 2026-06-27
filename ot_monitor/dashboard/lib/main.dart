@@ -16,6 +16,7 @@ import 'widgets/app_background.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await AppConfig.load();
+  WebSocketService.demoMode = true;
   runApp(const MyApp());
 }
 

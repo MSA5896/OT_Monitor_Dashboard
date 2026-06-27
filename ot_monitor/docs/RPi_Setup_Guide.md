@@ -1,249 +1,859 @@
-# OT Infection Monitoring System
-## Complete Hardware Installation & Setup Guide
-### Raspberry Pi 4 + SCD30 + BME280 + PMS5003
+# OT Monitor — Complete Hardware Installation Guide
+## Raspberry Pi 4 Model B + SCD30 + BME280 + PMS5003
+## Battery Powered: INR 18650 3S2P + LM2596S-5.0 + MT3608
 
 ---
 
 ## Table of Contents
 
-1. [Hardware Bill of Materials](#1-hardware-bill-of-materials)
-2. [GPIO & Wiring Reference](#2-gpio--wiring-reference)
-3. [Raspberry Pi OS — Flash & First Boot](#3-raspberry-pi-os--flash--first-boot)
-4. [Enable Interfaces (I2C, UART2, I2C Speed)](#4-enable-interfaces)
-5. [Verify Hardware Connections](#5-verify-hardware-connections)
-6. [Install Software Dependencies](#6-install-software-dependencies)
-7. [Clone Repository & Python Environment](#7-clone-repository--python-environment)
-8. [Test Each Sensor](#8-test-each-sensor)
-9. [Configure for Hardware Mode](#9-configure-for-hardware-mode)
-10. [Run & Verify the Backend](#10-run--verify-the-backend)
-11. [Autostart on Boot (systemd)](#11-autostart-on-boot-systemd)
-12. [Access Dashboard from Any Device](#12-access-dashboard-from-any-device)
-13. [Display Setup (Optional)](#13-display-setup-optional)
-14. [Sensor Maintenance & Calibration](#14-sensor-maintenance--calibration)
-15. [Troubleshooting](#15-troubleshooting)
+1. [Hardware Shopping List](#1-hardware-shopping-list)
+2. [Power System — Battery, LM2596S & MT3608](#2-power-system)
+3. [Raspberry Pi 4 — GPIO Pinout Reference](#3-raspberry-pi-4--gpio-pinout-reference)
+4. [Sensor 1 — SCD30 Wiring (CO₂, Temp, Humidity)](#4-sensor-1--scd30-wiring)
+5. [Sensor 2 — BME280 Wiring (Barometric Pressure)](#5-sensor-2--bme280-wiring)
+6. [Sensor 3 — PMS5003 Wiring (PM2.5 Air Quality)](#6-sensor-3--pms5003-wiring)
+7. [Complete Wiring — All 3 Sensors + Power Together](#7-complete-wiring--all-3-sensors--power-together)
+8. [Flash Raspberry Pi OS](#8-flash-raspberry-pi-os)
+9. [First Boot & System Update](#9-first-boot--system-update)
+10. [Enable I2C & UART2 Interfaces](#10-enable-i2c--uart2-interfaces)
+11. [Verify Wiring with Software](#11-verify-wiring-with-software)
+12. [Install Python Dependencies](#12-install-python-dependencies)
+13. [Clone & Configure the Project](#13-clone--configure-the-project)
+14. [Test All Sensors](#14-test-all-sensors)
+15. [Switch to Hardware Mode](#15-switch-to-hardware-mode)
+16. [Run the Backend](#16-run-the-backend)
+17. [Autostart on Boot (systemd)](#17-autostart-on-boot-systemd)
+18. [Access the Dashboard](#18-access-the-dashboard)
+19. [Troubleshooting Guide](#19-troubleshooting-guide)
 
 ---
 
-## 1. Hardware Bill of Materials
+## 1. Hardware Shopping List
 
-### Core
+### Main Board
 
-| # | Component | Specification | Notes |
-|---|-----------|---------------|-------|
-| 1 | **Raspberry Pi 4 Model B** | 2 GB RAM minimum (4 GB recommended) | Main compute unit |
-| 1 | **MicroSD card** | 16 GB+ Class 10 / A1 rated | OS + SQLite database |
-| 1 | **USB-C Power Supply** | 5V 3A (official RPi PSU) | Underpowering causes brown-outs |
-| 1 | **Case with GPIO access** | Any standard RPi 4 case | Leave GPIO header accessible |
+| # | Item | Specification | Where to Buy |
+|---|------|---------------|-------------|
+| 1 | **Raspberry Pi 4 Model B** | 4 GB RAM recommended | raspberrypi.com, Amazon |
+| 1 | **MicroSD Card** | 32 GB, Class 10 / A1 rated | SanDisk, Samsung |
+| 1 | **RPi 4 Case** | Any with GPIO header access | Amazon |
+
+### Power System
+
+| # | Item | Specification | Role |
+|---|------|---------------|------|
+| 1 | **Pro-Range INR 18650 Battery** | 11.1V, 5000mAh, 3C, 3S2P | Main power source |
+| 1 | **LM2596S-5.0 Buck Module** | Step DOWN, Fixed 5V, 3A, TO-263-5L | Powers RPi 4 + PMS5003 |
+| 1 | **MT3608 Boost Module** | Step UP, 2A max, adjustable up to 28V | Powers display / 12V loads |
+| 1 | **5A Blade Fuse + Holder** | Inline, between battery and converters | Overcurrent protection |
+| 1 | **Rocker Switch** | 15A 250V (or 10A 125V) | System on/off |
 
 ### Sensors
 
-| # | Sensor | Interface | Measures | I²C Address |
-|---|--------|-----------|----------|-------------|
-| 1 | **Sensirion SCD30** | I²C @ 10 kHz | CO₂ (ppm), Temperature (°C), Humidity (%RH) | `0x61` (fixed) |
-| 1 | **Bosch BME280** breakout | I²C @ 10 kHz | Barometric Pressure (hPa) | `0x76` (SDO→GND) |
-| 1 | **Plantower PMS5003** | UART2 9600 baud | PM1.0, PM2.5, PM10 (µg/m³) | — |
+| # | Sensor | Measures | Interface | Buy From |
+|---|--------|----------|-----------|----------|
+| 1 | **Sensirion SCD30** | CO₂ (ppm), Temp (°C), Humidity (%RH) | I2C | Adafruit #4867, Sparkfun |
+| 1 | **Bosch BME280 Breakout** | Pressure (hPa), Temp, Humidity | I2C | Adafruit #2652, Amazon |
+| 1 | **Plantower PMS5003** | PM1.0, PM2.5, PM10 (µg/m³) | UART | Amazon, AliExpress |
 
 ### Accessories
 
-| # | Item | Purpose |
-|---|------|---------|
-| 1 | Female-to-female jumper wires (20 cm) | Sensor connections |
-| 1 | Small breadboard or terminal block | Tidy wiring / strain relief |
-| 1 | HDMI monitor or Waveshare touchscreen | Dashboard display |
-| 1 | USB keyboard + mouse | Initial setup only |
+| # | Item | Notes |
+|---|------|-------|
+| 20+ | Female-to-Female Jumper Wires | 20 cm length |
+| 1 | Mini Breadboard | For neat multi-sensor connections |
+| 1 | USB Keyboard + Mouse | Setup only |
+| 1 | HDMI Monitor / TV | Setup only |
 
-> **SCD30 note:** The Sensirion SCD30 breakout is available from Adafruit (#4867), Sparkfun (#SEN-15112), or Seedstudio. Ensure the breakout board exposes VCC, GND, SDA, SCL, and SEL pins.
+> **SCD30 Note:** Ensure the breakout board exposes VCC, GND, SDA, SCL, and SEL pins.
+> **PMS5003 Note:** It comes with a ZH1.25mm cable. You need a cable adapter or solder jumper wires to it.
 
 ---
 
-## 2. GPIO & Wiring Reference
+## 2. Power System
 
-### RPi 4 GPIO Pinout (relevant pins only)
+### 2.1 — Battery Specifications
 
 ```
-                    ┌────────────────────────┐
-                    │   Raspberry Pi 4       │
-  3.3V  ── Pin  1 ──┤ □ □ ├── Pin  2 ──  5V │
-  SDA1  ── Pin  3 ──┤ □ □ ├── Pin  4 ──  5V │
-  SCL1  ── Pin  5 ──┤ □ □ ├── Pin  6 ── GND │
-GPIO17  ── Pin 11 ──┤ □ □ ├── Pin  9 ── GND │
-UART0TX ── Pin  8 ──┤ □ □ ├── Pin 10 ── UART0RX │  (not used — no MH-Z19B)
-GPIO27  ── Pin 13 ──┤ □ □ ├── Pin 14 ── GND │
-UART2TX ── Pin 24 ──┤ □ □ ├── Pin 21 ── UART2RX │
-                    └────────────────────────┘
-```
+  ┌─────────────────────────────────────────────────────────────┐
+  │          PRO-RANGE INR 18650 BATTERY PACK                   │
+  │                                                             │
+  │  Chemistry  : INR (Li-NMC — Lithium Nickel Manganese        │
+  │               Cobalt Oxide) — safer, high energy density    │
+  │  Config     : 3S2P (3 cells series × 2 cells parallel)     │
+  │  Voltage    : 11.1V nominal  |  12.6V full  |  9.0V cutoff │
+  │  Capacity   : 5000 mAh  =  55.5 Wh                        │
+  │  Max disch. : 3C × 5000mAh = 15A peak                      │
+  │  Output     : + (RED) and − (BLACK) terminals               │
+  │  Protection : Built-in BMS (over-current, over-voltage,     │
+  │               short-circuit, deep-discharge protection)     │
+  └─────────────────────────────────────────────────────────────┘
 
----
+  Cell arrangement:
 
-### SCD30 → Raspberry Pi 4
-
-| SCD30 Pin | RPi Pin | RPi Name | Note |
-|-----------|---------|----------|------|
-| VCC | Pin 1 | 3.3V | Do NOT connect to 5V |
-| GND | Pin 6 | GND | |
-| SDA | Pin 3 | GPIO2 / SDA1 | |
-| SCL | Pin 5 | GPIO3 / SCL1 | |
-| SEL | Pin 6 | GND | **Tie to GND** → selects I²C mode (not UART) |
-
-> If your breakout has a `nRDY` pin, leave it unconnected.
-
----
-
-### BME280 → Raspberry Pi 4
-
-| BME280 Pin | RPi Pin | RPi Name | Note |
-|------------|---------|----------|------|
-| VCC / 3V3 | Pin 1 | 3.3V | |
-| GND | Pin 6 | GND | |
-| SDA | Pin 3 | GPIO2 / SDA1 | Shared with SCD30 |
-| SCL | Pin 5 | GPIO3 / SCL1 | Shared with SCD30 |
-| SDO / ADDR | Pin 6 | GND | **Tie to GND** → I²C address = `0x76` |
-| CSB | Pin 1 | 3.3V | Tie HIGH for I²C mode |
-
-> Both SCD30 and BME280 share the same I²C bus (SDA=Pin3, SCL=Pin5). This is normal — I²C is a multi-device bus.
-
----
-
-### PMS5003 → Raspberry Pi 4
-
-| PMS5003 Pin | Label | RPi Pin | RPi Name | Note |
-|-------------|-------|---------|----------|------|
-| 1 | VCC | Pin 2 | **5V** | PMS5003 requires 5V |
-| 2 | GND | Pin 9 | GND | |
-| 3 | SET | Pin 11 | GPIO17 | Pull HIGH = sensor enabled |
-| 4 | RX | Pin 24 | GPIO8 / UART2 TX | Cross: sensor RX ← RPi TX |
-| 5 | TX | Pin 21 | GPIO9 / UART2 RX | Cross: sensor TX → RPi RX |
-| 6 | RESET | Pin 13 | GPIO27 | Pull HIGH = normal operation |
-
-> **PMS5003 cable:** The sensor comes with a 1.27mm pitch ZH connector cable. Use a breakout adapter or carefully solder female jumper wires to the cable ends. Pin 1 is the side closest to the red wire.
-
----
-
-### Wiring Summary Diagram
-
-```
-RPi 4                    Sensors
-──────────────────────────────────────────────────────
-Pin 1  (3.3V) ──────┬── SCD30 VCC
-                    └── BME280 VCC / CSB (both to 3.3V)
-
-Pin 2  (5V)   ─────── PMS5003 Pin 1 (VCC)
-
-Pin 3  (SDA)  ──────┬── SCD30 SDA
-                    └── BME280 SDA        [I²C shared bus]
-
-Pin 5  (SCL)  ──────┬── SCD30 SCL
-                    └── BME280 SCL        [I²C shared bus]
-
-Pin 6  (GND)  ──────┬── SCD30 GND
-                    ├── SCD30 SEL         (I²C mode select)
-                    ├── BME280 GND
-                    └── BME280 SDO        (address = 0x76)
-
-Pin 9  (GND)  ─────── PMS5003 Pin 2 (GND)
-
-Pin 11 (GPIO17) ──── PMS5003 Pin 3 (SET)  (HIGH = enabled)
-
-Pin 13 (GPIO27) ──── PMS5003 Pin 6 (RESET) (HIGH = normal)
-
-Pin 21 (GPIO9 / UART2 RX) ── PMS5003 Pin 5 (TX)
-Pin 24 (GPIO8 / UART2 TX) ── PMS5003 Pin 4 (RX)
+      [Cell A1]─[Cell B1]─[Cell C1]   ← series string 1
+           ║         ║         ║
+      [Cell A2]─[Cell B2]─[Cell C2]   ← series string 2
+           │                   │
+          (−)               (+)
+        9–12.6V output
 ```
 
 ---
 
-## 3. Raspberry Pi OS — Flash & First Boot
+### 2.2 — Power Architecture
 
-### 3.1 Flash the SD Card
+```
+                    ┌─────────────────────────────────────────────┐
+                    │     INR 18650 3S2P BATTERY PACK             │
+                    │     11.1V nominal  |  5000 mAh              │
+                    └──────────────┬──────────────────────────────┘
+                                   │
+                           [ROCKER SWITCH]
+                                   │
+                           [5A BLADE FUSE]
+                                   │
+                  ┌────────────────┴────────────────┐
+                  │                                 │
+           LM2596S-5.0                          MT3608
+          (STEP DOWN)                          (STEP UP)
+          11.1V → 5V                         11.1V → 12V
+           Fixed 5V / 3A                     2A max
+                  │                                 │
+          ┌───────┴──────────┐              [12V Display /
+          │                  │               12V Fan /
+        RPi 4            PMS5003             Optional Load]
+     GPIO Pin 2/4        Pin 1 (VCC)
+       (5V power)          (5V)
+          │
+    RPi internal
+    3.3V regulator
+          │
+    ┌─────┴──────────┐
+   SCD30          BME280
+  (3.3V I2C)     (3.3V I2C)
+```
 
-1. Download **Raspberry Pi Imager**: https://www.raspberrypi.com/software/
-2. Insert microSD card into your PC
-3. Open Imager → Choose Device: **Raspberry Pi 4**
-4. Choose OS: **Raspberry Pi OS Lite (64-bit)** — Bookworm (no desktop, saves RAM)
-5. Click the **gear icon (⚙)** before writing to pre-configure:
-   - Hostname: `ot-monitor`
-   - Username: `pi` / Password: `(set a strong password)`
-   - Enable SSH: checked
-   - WiFi SSID + password (if using WiFi)
-   - Locale / timezone: `Asia/Kolkata`
-6. Click **Write** and wait for verification
+---
 
-### 3.2 First Boot
+### 2.3 — LM2596S-5.0 Wiring (Step DOWN — 11.1V → 5V)
 
-Insert the SD card into the RPi and power on. Wait ~90 seconds for first boot.
+**Module appearance:**
 
-**SSH in from Windows:**
+```
+  ┌───────────────────────────────────────────────┐
+  │           LM2596S-5.0 MODULE                  │
+  │   (Fixed 5V output — no pot to adjust)        │
+  │                                               │
+  │  ┌──────┐         ┌──────┐                   │
+  │  │ IN+  │  ◄────  │ OUT+ │  ────►            │
+  │  │ IN−  │  ◄────  │ OUT− │  ────►            │
+  │  └──────┘         └──────┘                   │
+  │                                               │
+  │  [Inductor]  [LM2596S chip]  [Capacitors]    │
+  │                          ⚠ FIXED 5V — no pot  │
+  └───────────────────────────────────────────────┘
+```
+
+**Connections:**
+
+```
+  BATTERY PACK                LM2596S-5.0 MODULE
+  ┌──────────┐                ┌──────────────────┐
+  │          │                │                  │
+  │  (+) RED ●────────────────● IN+              │
+  │          │                │                  │
+  │  (−) BLK ●────────────────● IN−              │
+  │          │                │                  │
+  └──────────┘                │  OUT+ ●──────────┼──► 5V RAIL (RED)
+                              │                  │
+                              │  OUT− ●──────────┼──► GND RAIL (BLACK)
+                              └──────────────────┘
+
+  5V RAIL connects to:
+    → RPi 4  Pin 2 (5V)  ← powers the entire RPi
+    → RPi 4  Pin 6 (GND)
+    → PMS5003 Pin 1 (VCC 5V)
+    → PMS5003 Pin 2 (GND)
+```
+
+**LM2596S-5.0 Specification:**
+
+| Parameter | Value |
+|-----------|-------|
+| Input voltage | 8V – 40V |
+| Output voltage | **Fixed 5.0V** |
+| Output current | 3A max (2A continuous recommended) |
+| Efficiency | ~85% at 11V in, 5V out, 1.5A load |
+| Package | TO-263-5L on PCB module |
+| Operating temp | −40°C to +125°C |
+
+> **⚠ Important:** The LM2596S chip gets **hot** under load. Ensure airflow or attach a small heatsink. Touch-test after 10 min — if too hot to touch, add heatsink.
+
+> **⚠ Verify 5V output with a multimeter before connecting to RPi.** A wrong voltage (even 5.5V) can damage the RPi 4.
+
+---
+
+### 2.4 — MT3608 Wiring (Step UP — 11.1V → 12V for display/fan)
+
+**Module appearance:**
+
+```
+  ┌───────────────────────────────────────────────┐
+  │              MT3608 MODULE                    │
+  │         (Adjustable boost converter)          │
+  │                                               │
+  │  ┌──────┐    [Pot]     ┌──────┐              │
+  │  │ IN+  │  ◄────  ┌────┤ OUT+ │  ────►       │
+  │  │ IN−  │  ◄────  │    │ OUT− │  ────►       │
+  │  └──────┘         │    └──────┘              │
+  │                   │                           │
+  │              Turn CW to increase voltage      │
+  │              Turn CCW to decrease voltage     │
+  └───────────────────────────────────────────────┘
+```
+
+**Setting Output Voltage (do this BEFORE connecting load):**
+
+```
+  Step 1: Connect battery to MT3608 IN+ and IN−
+  Step 2: Measure OUT+ to OUT− with multimeter
+  Step 3: Turn the small blue potentiometer screw:
+            Clockwise  ──► increases output voltage
+            Counter-CW ──► decreases output voltage
+  Step 4: Set to 12.0V (for display) or your required voltage
+  Step 5: Disconnect multimeter, connect your load
+```
+
+**Connections:**
+
+```
+  BATTERY PACK                MT3608 MODULE
+  ┌──────────┐                ┌──────────────────┐
+  │          │                │                  │
+  │  (+) RED ●────────────────● IN+              │
+  │          │                │                  │
+  │  (−) BLK ●────────────────● IN−              │
+  │          │                │                  │
+  └──────────┘                │  OUT+ ●──────────┼──► 12V+ to display/fan
+                              │                  │
+                              │  OUT− ●──────────┼──► GND to display/fan
+                              └──────────────────┘
+```
+
+**MT3608 Specification:**
+
+| Parameter | Value |
+|-----------|-------|
+| Input voltage | 2V – 24V |
+| Output voltage | Adjustable up to 28V |
+| Output current | **2A max** |
+| Switching frequency | 1.2 MHz |
+| Efficiency | ~93% typical |
+
+> **⚠ Do NOT draw more than 2A from MT3608.** A 7-inch HDMI display typically draws ~500mA at 12V — well within limits.
+
+> **⚠ Always set output voltage FIRST with a multimeter before connecting any load.**
+
+---
+
+### 2.5 — Complete Power Wiring with Safety Components
+
+```
+  ┌──────────────────────────────────────────────────────────────┐
+  │                  FULL POWER SCHEMATIC                        │
+  └──────────────────────────────────────────────────────────────┘
+
+  BATTERY(+) ──RED──► [SWITCH] ──► [5A FUSE] ──┬────► LM2596S IN+
+                                                │
+                                                └────► MT3608  IN+
+
+  BATTERY(−) ──BLK──────────────────────────────┬────► LM2596S IN−
+                                                │
+                                                └────► MT3608  IN−
+
+  LM2596S OUT+ ──RED 5V──┬──────────────────────────► RPi 4  Pin 2  (5V)
+                          └──────────────────────────► PMS5003 Pin1  (VCC 5V)
+
+  LM2596S OUT− ──BLK GND─┬──────────────────────────► RPi 4  Pin 6  (GND)
+                          └──────────────────────────► PMS5003 Pin2  (GND)
+
+  MT3608  OUT+ ──RED 12V─────────────────────────────► Display (+)
+  MT3608  OUT− ──BLK GND─────────────────────────────► Display (−)
+
+  RPi 4 Pin 1 (3.3V) ──────────────────────────────► SCD30  VCC
+                                                       BME280 VCC
+                                                       BME280 CSB
+  RPi 4 Pin 6 (GND)  ──────────────────────────────► SCD30  GND
+                                                       SCD30  SEL
+                                                       BME280 GND
+                                                       BME280 SDO
+```
+
+---
+
+### 2.6 — Battery Runtime Estimate
+
+System power consumption:
+
+| Component | Voltage | Current | Power |
+|-----------|---------|---------|-------|
+| Raspberry Pi 4 (typical load) | 5V | 1.2A | 6.0W |
+| PMS5003 | 5V | 0.1A | 0.5W |
+| SCD30 | 3.3V | 0.02A | 0.07W |
+| BME280 | 3.3V | 0.001A | 0.003W |
+| **Total at 5V rail** | **5V** | **~1.32A** | **~6.6W** |
+| LM2596S conversion loss (~85% eff.) | — | — | +1.0W |
+| **Total from battery** | **11.1V** | **~0.7A** | **~7.6W** |
+
+**Estimated runtime:**
+
+```
+  Battery energy   = 11.1V × 5.0Ah = 55.5 Wh
+  System draw      = ~7.6W (RPi + sensors only, no display)
+  Runtime estimate = 55.5 ÷ 7.6 = ~7.3 hours theoretical
+  Practical runtime = ~5–6 hours (accounting for BMS cutoff + aging)
+
+  With 12V display (5W extra via MT3608):
+  Total draw      = ~13W
+  Runtime         = 55.5 ÷ 13 = ~4.3 hours
+  Practical       = ~3–3.5 hours
+```
+
+---
+
+### 2.7 — Power Safety Checklist
+
+Before powering on for the first time:
+
+```
+  □  Fuse installed between battery (+) and converters
+  □  Switch wired on battery (+) line
+  □  LM2596S output measured at 5.0V with multimeter (nothing connected)
+  □  MT3608 output set to desired voltage (12V for display)
+  □  All GND connections common (battery −, LM2596S OUT−, RPi GND)
+  □  RPi NOT connected to USB-C charger while powered from GPIO (never both!)
+  □  LM2596S module has airflow or heatsink
+  □  Battery pack BMS protection is active (check datasheet)
+  □  No bare wire ends touching metal case or each other
+```
+
+> **⚠ NEVER power the RPi 4 from both USB-C AND GPIO Pin 2 at the same time.** This creates a voltage conflict and can damage the RPi.
+
+---
+
+## 3. Raspberry Pi 4 — GPIO Pinout Reference
+
+This is the RPi 4 header as viewed from above (USB ports facing down).
+
+```
+                    ┌──────────────────────────────────┐
+                    │         RASPBERRY PI 4 B         │
+                    │   (USB ports at bottom, HDMI right)│
+                    └──────────────────────────────────┘
+
+  LEFT SIDE (odd pins)              RIGHT SIDE (even pins)
+  ┌──────────────────────────────────────────────────────┐
+  │ Pin  1 │ 3.3V  ●══● 5.0V  │ Pin  2 │  ← 5V POWER  │
+  │ Pin  3 │ SDA1  ●══● 5.0V  │ Pin  4 │              │
+  │ Pin  5 │ SCL1  ●══● GND   │ Pin  6 │  ← GROUND    │
+  │ Pin  7 │ GPIO4 ●══● UART0TX│ Pin  8 │              │
+  │ Pin  9 │ GND   ●══● UART0RX│ Pin 10 │              │
+  │ Pin 11 │ GPIO17●══● GPIO18│ Pin 12 │              │
+  │ Pin 13 │ GPIO27●══● GND   │ Pin 14 │              │
+  │ Pin 15 │ GPIO22●══● GPIO23│ Pin 16 │              │
+  │ Pin 17 │ 3.3V  ●══● GPIO24│ Pin 18 │              │
+  │ Pin 19 │ MOSI  ●══● GND   │ Pin 20 │              │
+  │ Pin 21 │ MISO  ●══● GPIO25│ Pin 22 │              │
+  │ Pin 23 │ SCLK  ●══● GPIO8 │ Pin 24 │ ← UART2 TX  │
+  │ Pin 25 │ GND   ●══● GPIO7 │ Pin 26 │              │
+  │ Pin 27 │ ID_SD ●══● ID_SC │ Pin 28 │              │
+  │ Pin 29 │ GPIO5 ●══● GND   │ Pin 30 │              │
+  │ Pin 31 │ GPIO6 ●══● GPIO12│ Pin 32 │              │
+  │ Pin 33 │ GPIO13●══● GND   │ Pin 34 │              │
+  │ Pin 35 │ GPIO19●══● GPIO16│ Pin 36 │              │
+  │ Pin 37 │ GPIO26●══● GPIO20│ Pin 38 │              │
+  │ Pin 39 │ GND   ●══● GPIO21│ Pin 40 │              │
+  └──────────────────────────────────────────────────────┘
+```
+
+### Pins Used by This Project
+
+```
+  ┌──────────────────────────────────────────────────────┐
+  │                   PINS USED                          │
+  │                                                      │
+  │ Pin  1  │  3.3V      │ SCD30 VCC, BME280 VCC+CSB   │
+  │ Pin  2  │  5.0V      │ PMS5003 VCC                  │
+  │ Pin  3  │  GPIO2/SDA │ SCD30 SDA + BME280 SDA (I2C) │
+  │ Pin  5  │  GPIO3/SCL │ SCD30 SCL + BME280 SCL (I2C) │
+  │ Pin  6  │  GND       │ SCD30 GND, SCD30 SEL,        │
+  │         │            │ BME280 GND, BME280 SDO        │
+  │ Pin  8  │  GPIO14    │ UART0 TXD0 → PMS5003 RX      │
+  │ Pin  9  │  GND       │ PMS5003 GND                  │
+  │ Pin 10  │  GPIO15    │ UART0 RXD0 ← PMS5003 TX      │
+  │ Pin 11  │  GPIO17    │ PMS5003 SET (HIGH=active)    │
+  │ Pin 13  │  GPIO27    │ PMS5003 RESET (HIGH=normal)  │
+  └──────────────────────────────────────────────────────┘
+```
+
+---
+
+## 4. Sensor 1 — SCD30 Wiring
+
+**Sensirion SCD30** measures CO₂, Temperature, and Humidity over I2C at address **0x61**.
+
+### SCD30 Pin Layout
+
+```
+  ┌─────────────────────────────────┐
+  │         SENSIRION SCD30         │
+  │   (top view, cable facing you)  │
+  │                                 │
+  │  ┌─────┬─────┬─────┬─────┬─────┤
+  │  │ VCC │ GND │ SDA │ SCL │ SEL │
+  │  └──┬──┴──┬──┴──┬──┴──┬──┴──┬──┘
+  │     │     │     │     │     │
+  └─────┼─────┼─────┼─────┼─────┘
+        │     │     │     │
+      3.3V   GND   SDA   SCL  → also connect SEL to GND!
+```
+
+### SCD30 → Raspberry Pi 4 Connection
+
+```
+  SCD30 SENSOR              RASPBERRY PI 4
+  ┌───────────┐             ┌─────────────┐
+  │           │             │             │
+  │  VCC  ●──┼─────RED─────┼── Pin 1  (3.3V)    │
+  │           │             │             │
+  │  GND  ●──┼────BLACK────┼── Pin 6  (GND)     │
+  │           │             │             │
+  │  SDA  ●──┼────BLUE─────┼── Pin 3  (GPIO2/SDA1)│
+  │           │             │             │
+  │  SCL  ●──┼────YELLOW───┼── Pin 5  (GPIO3/SCL1)│
+  │           │             │             │
+  │  SEL  ●──┼────BLACK────┼── Pin 6  (GND)  ⚠️ MUST!│
+  │           │             │             │
+  │  nRDY ●  │  (leave unconnected)       │
+  └───────────┘             └─────────────┘
+```
+
+### SCD30 Wiring Table
+
+| SCD30 Pin | Wire Color | RPi Pin | RPi Function | Critical? |
+|-----------|-----------|---------|--------------|-----------|
+| VCC | Red | Pin 1 | 3.3V | Yes — **3.3V only, never 5V** |
+| GND | Black | Pin 6 | GND | Yes |
+| SDA | Blue | Pin 3 | GPIO2 / SDA1 | Yes |
+| SCL | Yellow | Pin 5 | GPIO3 / SCL1 | Yes |
+| SEL | Black | Pin 6 | GND | **Yes — must be tied LOW for I2C mode** |
+| nRDY | — | — | Not connected | Leave floating |
+
+> **IMPORTANT:** The SCD30 SEL pin selects communication mode. Tie it to GND to use I2C. If left floating, the sensor may use UART and will not respond on I2C.
+
+> **IMPORTANT:** The SCD30 requires the I2C bus slowed to **10 kHz** (not the default 100 kHz). This is configured in Step 9.
+
+---
+
+## 5. Sensor 2 — BME280 Wiring
+
+**Bosch BME280** measures Barometric Pressure, Temperature, and Humidity over I2C at address **0x76**.
+
+### BME280 Breakout Pin Layout
+
+```
+  ┌──────────────────────────────────────┐
+  │           BME280 BREAKOUT            │
+  │       (Adafruit or generic)          │
+  │                                      │
+  │  ┌─────┬─────┬─────┬─────┬─────┬────┤
+  │  │ VIN │ GND │ SCK │ SDI │ SDO │ CS │
+  │  │     │     │(SCL)│(SDA)│(ADR)│    │
+  │  └──┬──┴──┬──┴──┬──┴──┬──┴──┬──┴──┬─┘
+         │     │     │     │     │     │
+       3.3V  GND   SCL   SDA   GND  3.3V
+                               (→0x76) (I2C mode)
+```
+
+> Different breakout brands label pins differently. Common labels: VIN/VCC/3V3, GND, SCK/SCL, SDI/SDA, SDO/ADDR, CS/CSB.
+
+### BME280 → Raspberry Pi 4 Connection
+
+```
+  BME280 SENSOR             RASPBERRY PI 4
+  ┌───────────┐             ┌─────────────┐
+  │           │             │             │
+  │  VIN  ●──┼─────RED─────┼── Pin 1  (3.3V)    │
+  │  (VCC)    │             │             │
+  │  GND  ●──┼────BLACK────┼── Pin 6  (GND)     │
+  │           │             │             │
+  │  SDI  ●──┼────BLUE─────┼── Pin 3  (GPIO2/SDA1)│ ← shares with SCD30
+  │  (SDA)    │             │             │
+  │  SCK  ●──┼────YELLOW───┼── Pin 5  (GPIO3/SCL1)│ ← shares with SCD30
+  │  (SCL)    │             │             │
+  │  SDO  ●──┼────BLACK────┼── Pin 6  (GND)  → sets address 0x76│
+  │  (ADDR)   │             │             │
+  │  CS   ●──┼─────RED─────┼── Pin 1  (3.3V) → selects I2C mode│
+  │  (CSB)    │             │             │
+  └───────────┘             └─────────────┘
+```
+
+### BME280 Wiring Table
+
+| BME280 Pin | Wire Color | RPi Pin | RPi Function | Critical? |
+|------------|-----------|---------|--------------|-----------|
+| VIN / VCC / 3V3 | Red | Pin 1 | 3.3V | Yes |
+| GND | Black | Pin 6 | GND | Yes |
+| SDI / SDA | Blue | Pin 3 | GPIO2 / SDA1 | Yes — shares bus with SCD30 |
+| SCK / SCL | Yellow | Pin 5 | GPIO3 / SCL1 | Yes — shares bus with SCD30 |
+| SDO / ADDR | Black | Pin 6 | GND | **Yes — sets I2C address to 0x76** |
+| CS / CSB | Red | Pin 1 | 3.3V | **Yes — selects I2C mode (not SPI)** |
+
+> **NOTE:** SCD30 and BME280 share the same SDA (Pin 3) and SCL (Pin 5). This is normal — I2C supports multiple devices on one bus.
+
+---
+
+## 6. Sensor 3 — PMS5003 Wiring
+
+**Plantower PMS5003** measures PM1.0, PM2.5, PM10 particulate matter over UART0 serial (GPIO14/GPIO15).
+
+### PMS5003 Pin Layout
+
+The PMS5003 comes with a ZH1.25mm 8-pin flat cable. The cable's red wire (Pin 1) is on the side closest to the sensor's laser lens.
+
+```
+  PMS5003 (front view, connector on bottom)
+  ┌─────────────────────────────────────────┐
+  │  ╔══════════════════════════════════╗   │
+  │  ║          LASER SENSOR            ║   │
+  │  ║         (do not block)           ║   │
+  │  ╚══════════════════════════════════╝   │
+  │  AIR IN ──────────────────── AIR OUT   │
+  └────────────────┬────────────────────────┘
+                   │
+          ZH1.25mm CABLE (8 pins)
+          Pin numbering (left to right):
+
+    ┌─────┬─────┬─────┬─────┬─────┬─────┬─────┬─────┐
+    │  1  │  2  │  3  │  4  │  5  │  6  │  7  │  8  │
+    │ VCC │ GND │ SET │ RX  │ TX  │RESET│ NC  │ NC  │
+    └─────┴─────┴─────┴─────┴─────┴─────┴─────┴─────┘
+      RED  BLK  WHT  YEL  GRN  BLU  —    —
+      5V   GND  ON   RX   TX  RESET unused
+```
+
+### PMS5003 → Raspberry Pi 4 Connection
+
+```
+  PMS5003 SENSOR            RASPBERRY PI 4
+  ┌───────────┐             ┌─────────────┐
+  │           │             │             │
+  │ Pin1 VCC●─┼─────RED─────┼── Pin 2  (5V)  ← MUST be 5V │
+  │           │             │             │
+  │ Pin2 GND●─┼────BLACK────┼── Pin 9  (GND)  │
+  │           │             │             │
+  │ Pin3 SET●─┼────WHITE────┼── Pin 11 (GPIO17) HIGH=active │
+  │           │             │             │
+  │  Pin4 RX●─┼────YELLOW───┼── Pin 8  (GPIO14/UART0 TXD0) │
+  │           │             │      ↑ RPi TRANSMITS → Sensor RECEIVES │
+  │  Pin5 TX●─┼────GREEN────┼── Pin 10 (GPIO15/UART0 RXD0) │
+  │           │             │      ↑ Sensor TRANSMITS → RPi RECEIVES │
+  │ Pin6 RST●─┼────BLUE─────┼── Pin 13 (GPIO27) HIGH=normal │
+  │           │             │             │
+  │ Pin7  NC  │  (not connected)          │
+  │ Pin8  NC  │  (not connected)          │
+  └───────────┘             └─────────────┘
+```
+
+### PMS5003 Wiring Table
+
+| PMS5003 Pin | Label | Wire Color | RPi Pin | RPi Function | Critical? |
+|-------------|-------|-----------|---------|--------------|-----------|
+| 1 | VCC | Red | Pin 2 | **5V** | Yes — **must be 5V, NOT 3.3V** |
+| 2 | GND | Black | Pin 9 | GND | Yes |
+| 3 | SET | White | Pin 11 | GPIO17 | Yes — must be HIGH to enable sensor |
+| 4 | RX | Yellow | **Pin 8** | **GPIO14 / UART0 TXD0** | Yes — **CROSSED: RPi TX → Sensor RX** |
+| 5 | TX | Green | **Pin 10** | **GPIO15 / UART0 RXD0** | Yes — **CROSSED: Sensor TX → RPi RX** |
+| 6 | RESET | Blue | Pin 13 | GPIO27 | Yes — must be HIGH for normal operation |
+| 7 | NC | — | — | Not connected | — |
+| 8 | NC | — | — | Not connected | — |
+
+> **CRITICAL:** RX and TX are **crossed**. The PMS5003's TX (what it sends out) connects to the RPi's RX (what it reads in), and vice versa. Getting this backwards is the most common PMS5003 wiring mistake.
+
+> **CRITICAL:** The PMS5003 needs **5V power** (Pin 2 on RPi). Running it on 3.3V will give no output or corrupted frames.
+
+---
+
+## 7. Complete Wiring — All 3 Sensors + Power Together
+
+### Overview Diagram
+
+```
+╔══════════════════════════════════════════════════════════════════╗
+║               RASPBERRY PI 4 MODEL B                           ║
+║                  GPIO HEADER (top view)                        ║
+╠═══════════════════════════════════════════════════════╦═════════╣
+║  Pin 1  [3.3V ] ●══════════════════════╗             ║         ║
+║  Pin 2  [5.0V ] ●════════════════════╗ ║             ║  USB    ║
+║  Pin 3  [SDA1 ] ●══════════════════╗ ║ ║             ║  PORTS  ║
+║  Pin 4  [5.0V ]                    ║ ║ ║             ║         ║
+║  Pin 5  [SCL1 ] ●════════════════╗ ║ ║ ║             ╠═════════╣
+║  Pin 6  [GND  ] ●══════════════╗ ║ ║ ║ ║             ║         ║
+║  Pin 7  [GPIO4]                ║ ║ ║ ║ ║             ║  ETH    ║
+║  Pin 8  [TX0  ] ●════════════╗ ║ ║ ║ ║ ║  ← UART0 TX ║         ║
+║  Pin 9  [GND  ] ●══════════╗ ║ ║ ║ ║ ║ ║             ╠═════════╣
+║  Pin 10 [RX0  ] ●════════╗ ║ ║ ║ ║ ║ ║ ║  ← UART0 RX ║         ║
+║  Pin 11 [GPIO17]●════════╗ ║ ║ ║ ║ ║ ║ ║             ║  HDMI   ║
+║  Pin 12 [GPIO18]           ║ ║ ║ ║ ║ ║ ║             ║         ║
+║  Pin 13 [GPIO27]●══════╗ ║ ║ ║ ║ ║ ║ ║             ╚═════════╣
+║  Pin 14 [GND  ]        ║ ║ ║ ║ ║ ║ ║ ║                       ║
+║  Pin 15 [GPIO22]       ║ ║ ║ ║ ║ ║ ║ ║                       ║
+║  Pin 16 [GPIO23]       ║ ║ ║ ║ ║ ║ ║ ║                       ║
+║  Pin 17 [3.3V ]        ║ ║ ║ ║ ║ ║ ║ ║                       ║
+║  Pin 18 [GPIO24]       ║ ║ ║ ║ ║ ║ ║ ║                       ║
+║  Pin 19 [MOSI ]        ║ ║ ║ ║ ║ ║ ║ ║                       ║
+║  Pin 20 [GND  ]        ║ ║ ║ ║ ║ ║ ║ ║                       ║
+║  Pin 21 [MISO ]        ║ ║ ║ ║ ║ ║ ║ ║                       ║
+║  Pin 22 [GPIO25]       ║ ║ ║ ║ ║ ║ ║ ║                       ║
+║  Pin 23 [SCLK ]        ║ ║ ║ ║ ║ ║ ║ ║                       ║
+║  Pin 24 [GPIO8]        ║ ║ ║ ║ ║ ║ ║ ║                       ║
+╚═══════════════════╪════╪═╪═╪═╪═╪═╪═╪═╪═╝                     ║
+                    ║    ║ ║ ║ ║ ║ ║ ║ ║
+            UART0TX ╝    ║ ║ ║ ║ ║ ║ ║ ╚══════ SCD30 VCC (3.3V)
+            UART0RX ─────╝ ║ ║ ║ ║ ║ ║ ╚══════╗ BME280 VCC
+                           ║ ║ ║ ║ ║ ║         ╠═ BME280 CSB
+                           ║ ║ ║ ║ ║ ╚═════════╝
+                           ║ ║ ║ ║ ╚═══════════ PMS5003 GND
+                           ║ ║ ║ ╚═════════════ SCD30 GND
+                  GPIO27 ──╝ ║ ║                SCD30 SEL (→GND)
+                             ║ ║                BME280 GND
+                  GPIO17 ────╝ ║                BME280 SDO (→GND)
+                               ╚═════════════── PMS5003 SET
+```
+
+### Simplified Wiring Map
+
+```
+RPi 4 Pin          Wire           Destination
+─────────────────────────────────────────────────────
+Pin 1  (3.3V) ────RED──────────┬─ SCD30  VCC
+                                ├─ BME280 VCC
+                                └─ BME280 CSB (HIGH = I2C mode)
+
+Pin 2  (5V)   ────RED──────────── PMS5003 Pin1 (VCC)
+
+Pin 3  (SDA1) ────BLUE─────────┬─ SCD30  SDA
+                                └─ BME280 SDA (SDI)
+
+Pin 5  (SCL1) ────YELLOW───────┬─ SCD30  SCL
+                                └─ BME280 SCL (SCK)
+
+Pin 6  (GND)  ────BLACK────────┬─ SCD30  GND
+                                ├─ SCD30  SEL  ← I2C mode select
+                                ├─ BME280 GND
+                                └─ BME280 SDO  ← sets address 0x76
+
+Pin  8 (UART0TX)──YELLOW────────── PMS5003 Pin4 (RX)   RPi→sensor
+
+Pin  9 (GND)  ────BLACK────────── PMS5003 Pin2 (GND)
+
+Pin 10 (UART0RX)──GREEN─────────── PMS5003 Pin5 (TX)   sensor→RPi
+
+Pin 11 (GPIO17)───WHITE─────────── PMS5003 Pin3 (SET)  = HIGH enable
+
+Pin 13 (GPIO27)───BLUE──────────── PMS5003 Pin6 (RESET) = HIGH normal
+─────────────────────────────────────────────────────
+```
+
+### Breadboard Layout (Recommended)
+
+Using a mini breadboard makes the I2C shared connections clean:
+
+```
+                    MINI BREADBOARD
+  ┌─────────────────────────────────────────────┐
+  │  + rail (3.3V from Pin 1) ──────────────────│── RED
+  │  - rail (GND   from Pin 6) ─────────────────│── BLACK
+  │                                              │
+  │  Row A:  SCD30  SDA ──┬── BME280 SDA        │
+  │          (all to Pin 3 via Blue wire)        │
+  │                        │                    │
+  │  Row B:  SCD30  SCL ──┴── BME280 SCL        │
+  │          (all to Pin 5 via Yellow wire)      │
+  └─────────────────────────────────────────────┘
+```
+
+---
+
+## 8. Flash Raspberry Pi OS
+
+### Step 8.1 — Download Raspberry Pi Imager
+
+Go to: **https://www.raspberrypi.com/software/**
+Download and install the Imager for your PC (Windows/Mac/Linux).
+
+### Step 8.2 — Write the OS
+
+1. Insert microSD card into your PC
+2. Open Raspberry Pi Imager
+3. Click **"CHOOSE DEVICE"** → Select **Raspberry Pi 4**
+4. Click **"CHOOSE OS"** → **Raspberry Pi OS Lite (64-bit)** (Bookworm)
+   - "Lite" = no desktop, saves RAM for sensors
+5. Click **"CHOOSE STORAGE"** → Select your microSD card
+6. Click the **⚙ gear icon** (Advanced Options) and set:
+
+```
+  ┌─────────────────────────────────────────────┐
+  │          ADVANCED OPTIONS                   │
+  │                                             │
+  │  ☑ Set hostname:     ot-monitor             │
+  │  ☑ Enable SSH:       Use password auth      │
+  │  ☑ Set username:     msa                    │
+  │     Set password:    (choose a strong one)  │
+  │  ☑ Configure WiFi:   (your SSID + password) │
+  │  ☑ Set locale:                              │
+  │     Timezone:        Asia/Kolkata           │
+  │     Keyboard:        gb                     │
+  └─────────────────────────────────────────────┘
+```
+
+7. Click **Save**, then **Write** and confirm
+8. Wait for writing + verification to complete (~5 min)
+9. Eject the card safely
+
+---
+
+## 9. First Boot & System Update
+
+### Step 8.1 — Power On
+
+1. Insert microSD into Raspberry Pi 4
+2. Connect Ethernet cable (recommended over WiFi for setup)
+3. Connect USB-C power supply
+4. Wait **90 seconds** for first boot
+
+### Step 8.2 — Connect via SSH
+
+**From Windows (PowerShell or Command Prompt):**
 ```powershell
-ssh pi@ot-monitor.local
-```
-If `.local` does not resolve, find the IP from your router's DHCP table or use:
-```powershell
-ping ot-monitor.local
+ssh msa@ot-monitor.local
 ```
 
-### 3.3 Update the System
+If `ot-monitor.local` doesn't resolve, find the IP from your router's DHCP list, then:
+```powershell
+ssh msa@192.168.x.x
+```
+
+Type `yes` to accept the fingerprint, then enter your password.
+
+### Step 8.3 — Update Everything
 
 ```bash
 sudo apt update && sudo apt full-upgrade -y
 sudo reboot
 ```
 
+SSH back in after ~60 seconds.
+
 ---
 
-## 4. Enable Interfaces
+## 10. Enable I2C & UART0 Interfaces
 
-SSH back in after reboot, then run:
+### Step 9.1 — Enable I2C via raspi-config
 
 ```bash
 sudo raspi-config
 ```
 
-### 4.1 Enable I²C
-
+Navigate through the menus:
 ```
-Interface Options → I2C → Enable → OK
+  Interface Options
+    └── I2C
+          └── Would you like the ARM I2C interface enabled? → YES
+                └── OK → Finish
 ```
 
-### 4.2 Enable UART2 for PMS5003 and Slow I²C for SCD30
+### Step 9.2 — Disable Serial Login Shell (free UART0 for PMS5003)
 
-These require editing the boot config file directly:
+Still inside `raspi-config`, navigate:
+```
+  Interface Options
+    └── Serial Port
+          ├── "Would you like a login shell to be accessible over the serial port?" → NO
+          └── "Would you like the serial port hardware to be enabled?" → YES
+```
+
+Select **Finish** and let it reboot, or continue to the next step and reboot once at the end.
+
+### Step 9.3 — Edit Boot Config File
+
+This disables Bluetooth (to free UART0 for GPIO14/15), enables PL011 on GPIO14/15, and slows I2C to 10 kHz (required for SCD30).
 
 ```bash
 sudo nano /boot/firmware/config.txt
 ```
 
-> On older RPi OS (Bullseye or earlier) the path is `/boot/config.txt`
+> **Note:** On older RPi OS (Bullseye or earlier), the path is `/boot/config.txt`
 
-Scroll to the bottom and add these lines:
+Scroll to the very **bottom** of the file and add these lines:
 
 ```ini
-# Slow I2C bus to 10kHz for SCD30 clock-stretching compatibility
+# ── OT Monitor sensor config ───────────────────────────────
+# Slow I2C bus to 10 kHz — required for SCD30 clock stretching
 dtparam=i2c_arm_baudrate=10000
 
-# Enable UART2 on GPIO8/GPIO9 for PMS5003
-dtoverlay=uart2
+# Disable Bluetooth — frees UART0 (PL011) for GPIO14/GPIO15
+# Required so PMS5003 can use /dev/serial0 on Pin 8 (TXD0) and Pin 10 (RXD0)
+dtoverlay=disable-bt
+
+# Enable hardware UART (PL011) on GPIO14/GPIO15
+enable_uart=1
 ```
 
-Save (`Ctrl+O`, `Enter`, `Ctrl+X`) and reboot:
+Save the file: `Ctrl+O` → `Enter` → `Ctrl+X`
+
+> **Why disable Bluetooth?** On RPi 4, Bluetooth occupies the full PL011 UART (UART0) which is connected to GPIO14/15 by default. `dtoverlay=disable-bt` detaches Bluetooth and gives PMS5003 exclusive access to the reliable PL011 hardware UART. Bluetooth is not needed for this embedded OT monitoring application.
+
+### Step 9.4 — Reboot
 
 ```bash
 sudo reboot
 ```
 
-### 4.3 Verify Interfaces After Reboot
+SSH back in after reboot.
+
+### Step 9.5 — Add User to Required Groups
+
+This allows the `msa` user to access I2C and UART without `sudo`:
 
 ```bash
-# I2C tools
-sudo apt install -y i2c-tools
-
-# Scan I2C bus — should show 0x61 (SCD30) and 0x76 (BME280)
-i2cdetect -y 1
-
-# UART2 for PMS5003
-ls /dev/ttyAMA1
+sudo usermod -a -G dialout,i2c msa
+sudo reboot
 ```
 
-**Expected `i2cdetect` output:**
+SSH back in after reboot.
+
+---
+
+## 11. Verify Wiring with Software
+
+Before installing any Python libraries, verify the hardware is correctly wired.
+
+### Step 10.1 — Install I2C Tools
+
+```bash
+sudo apt install -y i2c-tools
+```
+
+### Step 10.2 — Scan I2C Bus
+
+```bash
+i2cdetect -y 1
+```
+
+### Expected Output
+
 ```
      0  1  2  3  4  5  6  7  8  9  a  b  c  d  e  f
 00:                         -- -- -- -- -- -- -- -- --
@@ -256,105 +866,177 @@ ls /dev/ttyAMA1
 70: -- -- -- -- -- -- 76 --
 ```
 
-| Address | Sensor |
-|---------|--------|
-| `0x61` | SCD30 — CO₂, Temperature, Humidity |
-| `0x76` | BME280 — Barometric Pressure |
+| You See | Meaning | If Missing |
+|---------|---------|-----------|
+| `61` at position 0x61 | SCD30 detected ✓ | Check SDA/SCL wires; confirm SEL→GND |
+| `76` at position 0x76 | BME280 detected ✓ | Check SDO→GND and CSB→3.3V |
 
----
-
-## 5. Verify Hardware Connections
-
-Before installing software, sanity-check the wiring with a quick voltage test:
+### Step 10.3 — Verify UART0 for PMS5003
 
 ```bash
-# Check 3.3V rail is alive (with voltmeter on Pin 1 vs Pin 6)
-# Expected: 3.28–3.35V
-
-# Check 5V rail (Pin 2 vs Pin 9)
-# Expected: 4.9–5.1V
-
-# If i2cdetect shows nothing:
-# 1. Power off RPi completely
-# 2. Re-check all SDA/SCL connections (easy to swap Pin 3 and Pin 5)
-# 3. Confirm SCD30 SEL pin is tied to GND
-# 4. Re-run i2cdetect -y 1
+ls -la /dev/serial0
+ls -la /dev/ttyAMA0
 ```
 
----
-
-## 6. Install Software Dependencies
-
-```bash
-# System packages
-sudo apt install -y python3-pip python3-venv git i2c-tools
-
-# Add pi user to dialout (UART) and i2c groups — required for sensor access without sudo
-sudo usermod -a -G dialout,i2c pi
-
-# Apply group changes in current session (or just reboot)
-newgrp dialout
+Expected:
+```
+lrwxrwxrwx 1 root root    7 Jun 21 12:00 /dev/serial0 -> ttyAMA0
+crw-rw---- 1 root dialout 204, 64 Jun 21 12:00 /dev/ttyAMA0
 ```
 
+`/dev/serial0` must be a symlink pointing to `ttyAMA0` (the full PL011 UART).
+
+If `/dev/serial0` points to `ttyS0` instead → `dtoverlay=disable-bt` or `enable_uart=1` is missing from config.txt.
+
+**Confirm Bluetooth is detached:**
+```bash
+sudo systemctl status hciuart
+```
+Expected: `inactive (dead)` — Bluetooth is off. This is correct for our use case.
+
+**Stop here if `/dev/serial0` → `ttyAMA0` is not confirmed. Fix config.txt and reboot first.**
+
 ---
 
-## 7. Clone Repository & Python Environment
+## 12. Install Python Dependencies
+
+### Step 11.1 — Install System Packages
 
 ```bash
-# Clone the repository
-cd ~
-git clone https://github.com/MSA5896/Project.git ot_monitor
-cd ot_monitor/ot_monitor/backend
+sudo apt install -y python3-pip python3-venv git
+```
 
-# Create isolated virtual environment
+### Step 11.2 — Clone the Repository
+
+```bash
+cd ~/Desktop
+git clone https://github.com/MSA5896/OT_Monitor_Dashboard.git ot_monitor
+cd ~/Desktop/ot_monitor/backend
+```
+
+### Step 11.3 — Create Python Virtual Environment
+
+```bash
 python3 -m venv venv
 source venv/bin/activate
-
-# Install Python backend dependencies
-pip install --upgrade pip
-pip install -r requirements.txt
-
-# Install Raspberry Pi hardware sensor libraries
-pip install \
-    adafruit-blinka \
-    adafruit-circuitpython-scd30 \
-    adafruit-circuitpython-bme280 \
-    pyserial \
-    smbus2
 ```
 
-> The hardware libraries (`adafruit-blinka`, etc.) must be installed **on the RPi only**. Do not install them on your development machine — they will fail.
+Your prompt should now show `(venv)` prefix.
+
+### Step 11.4 — Install All Dependencies
+
+```bash
+# Upgrade pip first
+pip install --upgrade pip
+
+# Backend server dependencies
+pip install -r requirements.txt
+
+# Raspberry Pi hardware sensor libraries
+pip install -r requirements-rpi.txt
+```
+
+What `requirements-rpi.txt` installs:
+
+```
+  smbus2                         — I2C bus access for scanning
+  adafruit-blinka                — CircuitPython hardware layer for Linux/RPi
+  adafruit-circuitpython-scd30   — SCD30 CO₂ sensor driver
+  adafruit-circuitpython-bme280  — BME280 pressure sensor driver
+  (pyserial already in requirements.txt) — PMS5003 UART driver
+```
+
+### Step 11.5 — Verify Installation
+
+```bash
+python3 -c "
+import board
+import busio
+import adafruit_scd30
+import adafruit_bme280.advanced
+import serial
+import smbus2
+print('All sensor libraries OK')
+"
+```
+
+Expected: `All sensor libraries OK`
+
+If any import fails, install that specific library manually:
+
+```bash
+pip install adafruit-blinka adafruit-circuitpython-scd30 adafruit-circuitpython-bme280 pyserial smbus2
+```
 
 ---
 
-## 8. Test Each Sensor
+## 13. Clone & Configure the Project
 
-Run the built-in sensor test script to verify every sensor before switching to live mode. This script opens each sensor, reads one value, and prints a pass/fail summary.
+### Step 12.1 — Verify Project Structure
 
 ```bash
-cd ~/ot_monitor/ot_monitor/backend
-source venv/bin/activate
-
-# Test all three sensors at once
-python sensors/test_sensors.py
-
-# Test individual sensors
-python sensors/test_sensors.py --sensor scd30
-python sensors/test_sensors.py --sensor bme280
-python sensors/test_sensors.py --sensor pms5003
-
-# I2C bus scan only
-python sensors/test_sensors.py --sensor i2c
-
-# Continuous live readings — watch values update (Ctrl+C to stop)
-python sensors/test_sensors.py --loop --interval 2
+ls ~/Desktop/ot_monitor/backend/
 ```
 
-### Expected Output (all pass)
+Expected output:
+```
+alarm_engine.py  app_state.py  auth.py  config.py
+data_model.py    data_sources/ main.py  requirements.txt
+requirements-rpi.txt  sensors/  storage.py  data/
+```
+
+```bash
+ls ~/Desktop/ot_monitor/backend/sensors/
+```
+
+Expected:
+```
+__init__.py        bme280_driver.py   mhz19_driver.py
+pms5003_driver.py  scd30_driver.py    sdp810_driver.py
+test_sensors.py
+```
+
+---
+
+## 14. Test All Sensors
+
+Run the built-in test script from the **backend** directory.
+
+```bash
+cd ~/Desktop/ot_monitor/backend
+source venv/bin/activate
+
+# Test all sensors at once
+python -m sensors.test_sensors
+```
+
+> **Important:** Always run from `backend/` using `python -m sensors.test_sensors`.
+> Do **NOT** `cd sensors/` and run `python test_sensors.py` — this causes `No module named 'sensors'` error.
+
+### Individual Sensor Tests
+
+```bash
+# SCD30 only
+python -m sensors.test_sensors --sensor scd30
+
+# BME280 only
+python -m sensors.test_sensors --sensor bme280
+
+# PMS5003 only
+python -m sensors.test_sensors --sensor pms5003
+
+# I2C scan only
+python -m sensors.test_sensors --sensor i2c
+
+# Continuous live readings (Ctrl+C to stop)
+python -m sensors.test_sensors --loop --interval 2
+```
+
+### Expected Output — All Pass
 
 ```
 OT Environment Monitoring System — Sensor Hardware Test
-  Date/Time : 2026-06-18 12:00:00 IST
+  Date/Time : 2026-06-21 21:30:00 IST
   Mode      : One-shot
   Sensor    : all
 
@@ -368,6 +1050,7 @@ OT Environment Monitoring System — Sensor Hardware Test
 ────────────────────────────────────────────────────────────
   SCD30 — CO₂ / Temperature / Humidity (I2C 0x61)
 ────────────────────────────────────────────────────────────
+  Waiting for first measurement (up to 15 seconds)…
 ✓  CO₂         : 423.5 ppm
 ✓  Temperature : 22.41 °C
 ✓  Humidity    : 53.7 %RH
@@ -383,6 +1066,7 @@ OT Environment Monitoring System — Sensor Hardware Test
 ────────────────────────────────────────────────────────────
   PMS5003 — PM1.0 / PM2.5 / PM10 (UART2 /dev/ttyAMA1)
 ────────────────────────────────────────────────────────────
+  Waiting for first frame (up to 3 seconds)…
 ✓  PM1.0  : 3.0 µg/m³
 ✓  PM2.5  : 5.1 µg/m³
 ✓  PM10   : 6.4 µg/m³
@@ -398,30 +1082,26 @@ OT Environment Monitoring System — Sensor Hardware Test
 ✓  All sensors passed! Switch config.yaml → data_source.type: hardware
 ```
 
-**Do not proceed to step 9 until all three sensors show PASS.**
+**Do not go to Step 14 until all three sensors show PASS.**
 
 ---
 
-## 9. Configure for Hardware Mode
-
-Open the configuration file:
+## 15. Switch to Hardware Mode
 
 ```bash
-nano ~/ot_monitor/ot_monitor/config/config.yaml
+nano ~/Desktop/ot_monitor/config/config.yaml
 ```
 
-### 9.1 Switch Data Source
+Make these changes:
 
-Find the `data_source` section and change `type`:
+### 14.1 — Change Data Source
 
 ```yaml
 data_source:
   type: hardware        # ← change from: simulator
 ```
 
-### 9.2 Listen on All Network Interfaces
-
-So you can access the dashboard from any device on the same network:
+### 14.2 — Allow Network Access to Dashboard
 
 ```yaml
 server:
@@ -429,58 +1109,53 @@ server:
   port: 8001
 ```
 
-### 9.3 Change the Session Secret (Important)
+### 14.3 — Generate a Secure Session Secret
 
-```yaml
-auth:
-  session_secret: "replace-with-a-long-random-string-here"
-```
-
-Generate a strong secret:
 ```bash
 python3 -c "import secrets; print(secrets.token_hex(32))"
 ```
 
-### 9.4 Review Hardware Source Settings (optional)
-
-The defaults work out of the box. Adjust only if needed:
+Copy the output and paste it into config:
 
 ```yaml
-hardware_source:
-  scd30_measurement_interval_s: 2     # polling cadence (2 s is ideal for OT)
-  scd30_temperature_offset_c: 0.0     # increase if sensor reads high (e.g. 2.0)
-  bme280_i2c_address: 0x76            # change to 0x77 if SDO is tied to 3.3V
-  pms_port: "/dev/ttyAMA1"
-  poll_interval_s: 2.0
+auth:
+  session_secret: "paste-your-generated-secret-here"
 ```
 
-**Temperature offset calibration:** Place a reference thermometer next to the SCD30. If the SCD30 reads 2°C higher than the reference (due to PCB self-heating), set `scd30_temperature_offset_c: 2.0`.
-
-### 9.5 Change Default Passwords
-
-Edit the users section:
+### 14.4 — Change Default Passwords
 
 ```yaml
 auth:
   users:
     - username: "admin"
-      password: "YourNewAdminPassword"
+      password: "YourStrongAdminPassword"
       role: "admin"
     - username: "nurse"
-      password: "YourNewNursePassword"
+      password: "YourStrongNursePassword"
       role: "viewer"
 ```
 
-Or add/remove users at runtime from the **Settings → User Management** panel in the dashboard.
+### 14.5 — Hardware Settings (optional tweaks)
+
+```yaml
+hardware_source:
+  scd30_measurement_interval_s: 2    # seconds between CO₂ readings (min 2)
+  scd30_temperature_offset_c: 0.0    # increase if SCD30 reads higher than reference thermometer
+  bme280_i2c_address: 0x76           # change to 0x77 if you wired SDO to 3.3V instead
+  pms_port: "/dev/ttyAMA1"           # UART2 port — should not change on RPi 4
+  poll_interval_s: 2.0               # how often all sensors are polled
+```
+
+Save: `Ctrl+O` → `Enter` → `Ctrl+X`
 
 ---
 
-## 10. Run & Verify the Backend
+## 16. Run the Backend
 
-### 10.1 Manual Start (for testing)
+### Manual Start (test mode)
 
 ```bash
-cd ~/ot_monitor/ot_monitor/backend
+cd ~/Desktop/ot_monitor/backend
 source venv/bin/activate
 python main.py
 ```
@@ -488,50 +1163,30 @@ python main.py
 You should see:
 
 ```
-12:00:01  INFO     SCD30 ready — CO₂, Temperature, Humidity
-12:00:01  INFO     BME280 ready — Barometric Pressure
-12:00:01  INFO     PMS5003 ready — PM1.0 / PM2.5 / PM10
-12:00:01  INFO     HardwareSource started — 3 sensors (SCD30 + BME280 + PMS5003), polling every 2.0 s
-12:00:01  INFO     OT Monitor backend started  ✓  (ot_id=OT-01, source=hardware)
+12:00:01  INFO  SCD30 ready — CO₂, Temperature, Humidity
+12:00:01  INFO  BME280 ready — Barometric Pressure
+12:00:01  INFO  PMS5003 ready — PM1.0 / PM2.5 / PM10
+12:00:01  INFO  HardwareSource started — 3 sensors (SCD30 + BME280 + PMS5003), polling every 2.0 s
+12:00:01  INFO  OT Monitor backend started ✓  (ot_id=OT-01, source=hardware)
 ```
 
-### 10.2 Open the Dashboard
+Open in browser: **http://ot-monitor.local:8001/**
 
-From any browser on the same network:
-
-```
-http://ot-monitor.local:8001/
-```
-
-Or using the RPi's IP address:
-
-```
-http://192.168.x.x:8001/
-```
-
-Login: `admin` / `OTAdmin2024` (or your changed password)
-
-### 10.3 Verify Live Data
-
-After login:
-- **Monitor panel**: KPI cards should show real sensor values (not simulated)
-- **CO₂ card**: will show "Warming Up…" for the first ~10 seconds after start, then a real ppm value
-- **Alarms panel**: live threshold violations from the real environment
-- **History panel**: real telemetry rows populating every 2 seconds
+Press `Ctrl+C` to stop.
 
 ---
 
-## 11. Autostart on Boot (systemd)
+## 17. Autostart on Boot (systemd)
 
-This makes the backend start automatically when the RPi powers on — no login required.
+Runs the backend automatically whenever the Pi powers on.
 
-### 11.1 Create the Service File
+### Step 16.1 — Create the Service File
 
 ```bash
 sudo nano /etc/systemd/system/ot-monitor.service
 ```
 
-Paste the following exactly:
+Paste exactly:
 
 ```ini
 [Unit]
@@ -541,9 +1196,9 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-User=pi
-WorkingDirectory=/home/pi/ot_monitor/ot_monitor/backend
-ExecStart=/home/pi/ot_monitor/ot_monitor/backend/venv/bin/python main.py
+User=msa
+WorkingDirectory=/home/msa/Desktop/ot_monitor/backend
+ExecStart=/home/msa/Desktop/ot_monitor/backend/venv/bin/python main.py
 Restart=on-failure
 RestartSec=10
 StandardOutput=journal
@@ -554,7 +1209,9 @@ Environment=PYTHONUNBUFFERED=1
 WantedBy=multi-user.target
 ```
 
-### 11.2 Enable and Start
+Save: `Ctrl+O` → `Enter` → `Ctrl+X`
+
+### Step 16.2 — Enable and Start
 
 ```bash
 sudo systemctl daemon-reload
@@ -562,7 +1219,7 @@ sudo systemctl enable ot-monitor
 sudo systemctl start ot-monitor
 ```
 
-### 11.3 Verify It Is Running
+### Step 16.3 — Verify
 
 ```bash
 sudo systemctl status ot-monitor
@@ -572,275 +1229,260 @@ Expected:
 ```
 ● ot-monitor.service — OT Infection Monitor Backend
      Loaded: loaded (/etc/systemd/system/ot-monitor.service; enabled)
-     Active: active (running) since ...
+     Active: active (running) since Sat 2026-06-21 12:00:00 IST; 5s ago
 ```
 
-### 11.4 Useful Commands
+### Useful Commands
 
 ```bash
-# View live logs
-sudo journalctl -u ot-monitor -f
-
-# View last 100 lines
-sudo journalctl -u ot-monitor -n 100
-
-# Restart after config change
-sudo systemctl restart ot-monitor
-
-# Stop the service
-sudo systemctl stop ot-monitor
-
-# Disable autostart
-sudo systemctl disable ot-monitor
+sudo journalctl -u ot-monitor -f          # live logs
+sudo journalctl -u ot-monitor -n 50       # last 50 lines
+sudo systemctl restart ot-monitor         # restart after config changes
+sudo systemctl stop ot-monitor            # stop service
+sudo systemctl disable ot-monitor         # remove from autostart
 ```
 
 ---
 
-## 12. Access Dashboard from Any Device
+## 18. Access the Dashboard
 
-### 12.1 Find the RPi's IP Address
+### Find the RPi's IP
 
 ```bash
-# On the RPi
 hostname -I
 ```
 
-Or from Windows:
-```powershell
-ping ot-monitor.local
-# The IP is shown in the reply
+### Open Dashboard
+
+From **any browser on the same WiFi/LAN**:
+
+```
+http://ot-monitor.local:8001/
 ```
 
-### 12.2 Set a Static IP (Recommended for Production)
+Or by IP address:
 
-Prevents the IP from changing after a router restart:
+```
+http://192.168.x.x:8001/
+```
+
+### Login
+
+| Role | Username | Password |
+|------|----------|----------|
+| Admin (full access) | `admin` | `OTAdmin2024` (change this!) |
+| Viewer (monitor only) | `nurse` | `OTNurse2024` (change this!) |
+
+### Set a Static IP (Recommended)
+
+So the dashboard URL never changes:
 
 ```bash
 sudo nano /etc/dhcpcd.conf
 ```
 
-Add at the bottom (replace with your network details):
+Add at the bottom:
 
 ```
 interface eth0
 static ip_address=192.168.1.100/24
 static routers=192.168.1.1
-static domain_name_servers=192.168.1.1 8.8.8.8
+static domain_name_servers=8.8.8.8 8.8.4.4
 ```
 
-Restart networking:
 ```bash
 sudo systemctl restart dhcpcd
 ```
 
-Dashboard will now always be at:
+Dashboard will always be at `http://192.168.1.100:8001/`
+
+---
+
+## 19. Troubleshooting Guide
+
+### Error: `No module named 'sensors'`
+
 ```
-http://192.168.1.100:8001/
-```
+Cause:  Running test_sensors.py from inside the sensors/ folder.
 
-### 12.3 Open Firewall Port (if needed)
+Wrong:
+  cd ~/Desktop/ot_monitor/backend/sensors
+  python3 test_sensors.py               ← FAILS
 
-RPi OS Lite has no firewall by default. If you added `ufw`:
-
-```bash
-sudo ufw allow 8001/tcp
+Correct:
+  cd ~/Desktop/ot_monitor/backend
+  python -m sensors.test_sensors        ← WORKS
 ```
 
 ---
 
-## 13. Display Setup (Optional)
-
-For a wall-mounted or bedside dashboard screen connected directly to the RPi.
-
-### 13.1 Recommended Displays
-
-| Model | Size | Resolution | Notes |
-|-------|------|------------|-------|
-| Waveshare 7" HDMI (B) | 7" | 1024×600 | Budget, good for testing |
-| Waveshare 10.1" IPS | 10.1" | 1280×800 | Better visibility |
-| **Waveshare 15.6" FHD Touch** | **15.6"** | **1920×1080** | **Recommended for OT** |
-| Mimo 15.6" Antimicrobial | 15.6" | 1920×1080 | Medical-grade enclosure |
-
-### 13.2 Auto-Launch Browser on Boot (Kiosk Mode)
-
-Install a minimal desktop with Chromium:
+### I2C shows nothing — no devices found
 
 ```bash
-sudo apt install -y --no-install-recommends xorg openbox chromium-browser unclutter
+i2cdetect -y 1
+# All dashes, no 61 or 76
 ```
 
-Create an autostart file:
-
-```bash
-mkdir -p ~/.config/openbox
-nano ~/.config/openbox/autostart
-```
-
-Paste:
-
-```bash
-# Hide mouse cursor after 2 seconds of inactivity
-unclutter -idle 2 &
-
-# Launch Chromium in kiosk mode pointing to the local dashboard
-chromium-browser \
-    --kiosk \
-    --noerrdialogs \
-    --disable-infobars \
-    --no-first-run \
-    --start-fullscreen \
-    "http://localhost:8001/" &
-```
-
-Enable auto-login and X session:
-
-```bash
-sudo raspi-config
-# System Options → Boot / Auto Login → Desktop Autologin
-```
-
-Reboot — Chromium will open the dashboard full screen automatically.
+| Check | Command |
+|-------|---------|
+| Is I2C enabled? | `sudo raspi-config` → Interface Options → I2C → should be enabled |
+| Is i2c-arm in config? | `grep i2c /boot/firmware/config.txt` |
+| Did you reboot? | `sudo reboot` after changing config.txt |
+| Check physical wires | SDA = Pin 3, SCL = Pin 5, GND = Pin 6 |
 
 ---
 
-## 14. Sensor Maintenance & Calibration
+### SCD30 missing (0x61 not shown)
 
-### SCD30 — CO₂ Sensor
-
-**Automatic Self-Calibration (ASC):**
-The SCD30 performs background ASC over 7+ continuous days of operation. It assumes the sensor sees fresh outdoor air (~420 ppm) at least once per day. This is typical for hospital corridors but may not be true in a sealed OT. If ASC is not appropriate for your installation, disable it:
-
-```python
-# Run once on the RPi from Python REPL
-from sensors.scd30_driver import SCD30Driver
-d = SCD30Driver(); d.open()
-d._sensor.self_calibration_enabled = False
-d.close()
 ```
+Likely causes:
+  1. SEL pin is NOT connected to GND  ← most common
+  2. VCC wired to 5V instead of 3.3V
+  3. SDA or SCL wire loose
 
-**Forced Recalibration (FRC) — annual or when readings seem off:**
-1. Place the SCD30 sensor in a room with fresh outdoor air (open window) for 5+ minutes
-2. Run:
-
-```bash
-cd ~/ot_monitor/ot_monitor/backend
-source venv/bin/activate
-python3 - <<'EOF'
-from sensors.scd30_driver import SCD30Driver
-import time
-d = SCD30Driver(); d.open()
-time.sleep(15)   # wait for first reading
-d.set_forced_recalibration(420)  # outdoor fresh air = ~420 ppm
-print("FRC command sent at 420 ppm reference")
-d.close()
-EOF
-```
-
-**Temperature offset adjustment:**
-If the SCD30 reads higher than a reference thermometer (common if enclosed):
-
-```bash
-nano ~/ot_monitor/ot_monitor/config/config.yaml
-# Change: scd30_temperature_offset_c: 2.0  (adjust to match your measurement)
-sudo systemctl restart ot-monitor
+Fix:
+  - Power off RPi
+  - Confirm SCD30 SEL → RPi Pin 6 (GND)
+  - Confirm SCD30 VCC → RPi Pin 1 (3.3V)
+  - Re-seat SDA and SCL wires
+  - Power on and run i2cdetect -y 1
 ```
 
 ---
 
-### BME280 — Pressure Sensor
+### BME280 missing (0x76 not shown)
 
-No calibration required. The BME280 is factory-calibrated and stable over its lifetime. Verify the reading is within ±5 hPa of a reference barometer.
+```
+Likely causes:
+  1. SDO pin is NOT connected (address floats, not 0x76)
+  2. CSB pin is NOT connected to 3.3V (SPI mode instead of I2C)
+  3. Sharing bus wrong — SDA/SCL wires not joined to SCD30
 
----
-
-### PMS5003 — Particulate Matter Sensor
-
-**Laser lifetime:** ~8,000 hours (≈3.3 years at 24/7 operation). Replace when PM readings become erratic or consistently zero despite visible particulates.
-
-**Cleaning:** Do not blow air into the sensor inlet. Occasional light dusting of the intake grill is sufficient.
-
-**Verification:** In a clean OT with HEPA-filtered air at rest, PM2.5 should read below 5 µg/m³. If it consistently reads 0 or >50 in a clean room, the sensor may be faulty.
-
----
-
-## 15. Troubleshooting
-
-### Sensor Issues
-
-| Symptom | Likely Cause | Fix |
-|---------|-------------|-----|
-| `i2cdetect` shows nothing | I²C not enabled | `sudo raspi-config` → Interfaces → I²C → Enable → Reboot |
-| Only one device at 0x61 | BME280 not detected | Check SDO tied to GND; check SDA/SCL shared correctly |
-| Only one device at 0x76 | SCD30 not detected | Check SEL pin tied to GND on SCD30 |
-| SCD30 `data_available` timeout | I²C too fast for clock stretching | Add `dtparam=i2c_arm_baudrate=10000` to `/boot/firmware/config.txt` → Reboot |
-| SCD30 CO₂ stuck at 400 ppm | Sensor just powered on | Normal — ASC needs ~1 week to stabilise in a new environment |
-| SCD30 CRC errors | I²C speed too high | Confirm `i2c_arm_baudrate=10000` is set |
-| `/dev/ttyAMA1` not found | UART2 overlay missing | Add `dtoverlay=uart2` to `/boot/firmware/config.txt` → Reboot |
-| PMS5003 checksum errors | Loose RX/TX wire | Power off; re-seat the PMS5003 cable; confirm TX→RX cross |
-| `Permission denied` on `/dev/ttyAMA1` | User not in `dialout` group | `sudo usermod -a -G dialout pi` → logout and login |
+Fix:
+  - Confirm BME280 SDO → RPi Pin 6 (GND)   → address 0x76
+  - Confirm BME280 CSB → RPi Pin 1 (3.3V)   → I2C mode
+  - Both SDA wires (SCD30 + BME280) must connect to Pin 3
+  - Both SCL wires (SCD30 + BME280) must connect to Pin 5
+```
 
 ---
 
-### Backend Issues
+### SCD30 timeout / CRC errors
 
-| Symptom | Likely Cause | Fix |
-|---------|-------------|-----|
-| Dashboard shows "Backend offline" | Backend not running | `sudo systemctl status ot-monitor` → check logs |
-| Dashboard unreachable from network | `host` is `127.0.0.1` | Change `server.host: "0.0.0.0"` in `config.yaml` → restart |
-| "Authentication required" on every page | Cookie not set | Access via `http://` not `file://`; ensure same-origin |
-| CO₂ shows "Warming Up…" | First 10 seconds after start | Normal — wait for SCD30 to initialise |
-| Alarms panel empty | No threshold violations yet | Check thresholds in Settings; normal if environment is clean |
-| High CO₂ alarms constantly | SCD30 needs calibration | Run FRC procedure (Section 14) |
-| Logs show sensor errors after hours | I²C bus locking up | Power cycle RPi; add 100nF decoupling capacitors to SDA/SCL lines |
+```
+Cause: I2C bus speed too fast. SCD30 uses clock stretching and requires 10 kHz.
+
+Verify /boot/firmware/config.txt contains:
+  dtparam=i2c_arm_baudrate=10000
+
+Check:
+  grep baudrate /boot/firmware/config.txt
+
+If missing, add it and reboot.
+```
 
 ---
 
-### Quick Diagnostics Command
+### PMS5003 timeout — no frame received
 
-Run this anytime to check the full system health:
+```
+Likely causes:
+  1. TX and RX wires are swapped  ← most common
+  2. VCC on 3.3V instead of 5V
+  3. dtoverlay=uart2 missing from config.txt
+  4. /dev/ttyAMA1 doesn't exist
+
+Fix step by step:
+  1. ls /dev/ttyAMA1            (must exist)
+  2. grep uart2 /boot/firmware/config.txt   (must be present)
+  3. Check PMS5003 VCC → RPi Pin 2 (5V), NOT Pin 1 (3.3V)
+  4. Check RX/TX cross:
+     PMS5003 Pin5 TX → RPi Pin21 (UART2 RX)
+     PMS5003 Pin4 RX → RPi Pin24 (UART2 TX)
+```
+
+---
+
+### `Permission denied` on `/dev/ttyAMA1`
 
 ```bash
-# Backend service status
-sudo systemctl status ot-monitor
+sudo usermod -a -G dialout pi
+sudo reboot
+```
 
-# Last 30 log lines
-sudo journalctl -u ot-monitor -n 30 --no-pager
+---
 
-# I2C scan
+### Sensor libraries not installing
+
+```bash
+# Check you're in the venv
+which python          # should show .../venv/bin/python
+
+# Install manually
+pip install adafruit-blinka
+pip install adafruit-circuitpython-scd30
+pip install adafruit-circuitpython-bme280
+pip install pyserial smbus2
+
+# Verify
+python3 -c "import board; print(board.SCL)"
+```
+
+---
+
+### Quick Full System Health Check
+
+Run all of these at once:
+
+```bash
+echo "=== Service Status ==="
+sudo systemctl status ot-monitor --no-pager
+
+echo "=== Last 20 Log Lines ==="
+sudo journalctl -u ot-monitor -n 20 --no-pager
+
+echo "=== I2C Scan ==="
 i2cdetect -y 1
 
-# UART port
+echo "=== UART2 Port ==="
 ls -la /dev/ttyAMA1
 
-# Sensor quick test
-cd ~/ot_monitor/ot_monitor/backend && source venv/bin/activate
-python sensors/test_sensors.py
-
-# API health check
-curl http://localhost:8001/health | python3 -m json.tool
+echo "=== Sensor Test ==="
+cd ~/Desktop/ot_monitor/backend && source venv/bin/activate
+python -m sensors.test_sensors
 ```
 
 ---
 
 ## Quick Reference Card
 
-| Item | Value |
-|------|-------|
-| Dashboard URL (local) | `http://ot-monitor.local:8001/` |
-| Dashboard URL (IP) | `http://192.168.x.x:8001/` |
-| Default admin login | `admin / OTAdmin2024` |
-| Default viewer login | `nurse / OTNurse2024` |
-| Config file | `ot_monitor/config/config.yaml` |
-| Sensor test script | `python sensors/test_sensors.py --loop` |
-| Live backend logs | `sudo journalctl -u ot-monitor -f` |
-| Restart backend | `sudo systemctl restart ot-monitor` |
-| Switch to hardware mode | `data_source.type: hardware` in config.yaml |
-| SCD30 I²C address | `0x61` |
-| BME280 I²C address | `0x76` (SDO→GND) |
-| PMS5003 UART port | `/dev/ttyAMA1` |
-| Required I²C speed | `10000` Hz (10 kHz) — for SCD30 clock stretching |
-| SCD30 warmup | ~10 seconds for first reading |
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    OT MONITOR — QUICK REF                   │
+├─────────────────────┬───────────────────────────────────────┤
+│ Dashboard URL       │ http://ot-monitor.local:8001/         │
+│ Admin login         │ admin / OTAdmin2024                   │
+│ Viewer login        │ nurse / OTNurse2024                   │
+├─────────────────────┼───────────────────────────────────────┤
+│ SCD30 I2C address   │ 0x61  (fixed)                        │
+│ BME280 I2C address  │ 0x76  (SDO → GND)                    │
+│ PMS5003 UART port   │ /dev/ttyAMA1                         │
+│ I2C bus speed       │ 10,000 Hz (10 kHz)                   │
+│ SCD30 warmup        │ ~10–15 seconds                        │
+├─────────────────────┼───────────────────────────────────────┤
+│ Run sensor test     │ python -m sensors.test_sensors        │
+│                     │ (from backend/ directory)             │
+│ View live logs      │ sudo journalctl -u ot-monitor -f      │
+│ Restart backend     │ sudo systemctl restart ot-monitor     │
+│ Config file         │ ~/Desktop/ot_monitor/config/config.yaml│
+├─────────────────────┼───────────────────────────────────────┤
+│ I2C verify          │ i2cdetect -y 1                       │
+│ UART verify         │ ls /dev/ttyAMA1                      │
+│ Group membership    │ groups msa  (must include dialout,i2c) │
+└─────────────────────┴───────────────────────────────────────┘
+```
 
 ---
 
-*Document version: June 2026 — Hardware revision: SCD30 + BME280 + PMS5003 on Raspberry Pi 4*
+*Last updated: June 2026 — Verified on Raspberry Pi 4 Model B (4GB) + RPi OS Bookworm 64-bit*
+*Sensors: Sensirion SCD30 rev.2 + Bosch BME280 + Plantower PMS5003*

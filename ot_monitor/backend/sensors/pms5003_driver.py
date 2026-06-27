@@ -2,20 +2,29 @@
 pms5003_driver.py — PM1.0 / PM2.5 / PM10 Particulate Matter sensor driver.
 
 Hardware:  Plantower PMS5003 laser particle counter
-Interface: UART2 (/dev/ttyAMA1 on RPi 4)
+Interface: UART0 (/dev/serial0 → /dev/ttyAMA0 on RPi 4 Model B)
+           GPIO14 = TXD0 (Pin 8)  → PMS5003 Pin 4 (RX)
+           GPIO15 = RXD0 (Pin 10) ← PMS5003 Pin 5 (TX)
            Baud rate: 9600, 8N1, 3.3V TTL logic
-Wiring (from OT_System_Requirements_Detailed.md):
-  PMS5003 Pin 1 (VCC)   → RPi Pin 2 (5V)
-  PMS5003 Pin 2 (GND)   → RPi Pin 9 (GND)
+Wiring:
+  PMS5003 Pin 1 (VCC)   → RPi Pin 2  (5V)
+  PMS5003 Pin 2 (GND)   → RPi Pin 9  (GND)
   PMS5003 Pin 3 (SET)   → RPi Pin 11 (GPIO17) — pull HIGH to enable
-  PMS5003 Pin 4 (RX)    → RPi Pin 24 (GPIO8 / UART2 TX)
-  PMS5003 Pin 5 (TX)    → RPi Pin 21 (GPIO9 / UART2 RX)
+  PMS5003 Pin 4 (RX)    → RPi Pin 8  (GPIO14 / UART0 TXD0)
+  PMS5003 Pin 5 (TX)    → RPi Pin 10 (GPIO15 / UART0 RXD0)
   PMS5003 Pin 6 (RESET) → RPi Pin 13 (GPIO27) — pull HIGH for normal
 
-Enable UART2 on RPi:
-  Add the following line to /boot/config.txt (or /boot/firmware/config.txt on RPi OS Bookworm):
-    dtoverlay=uart2
-  Then reboot. The port appears as /dev/ttyAMA1.
+Enable UART0 on RPi 4 Model B:
+  1. Add to /boot/firmware/config.txt (or /boot/config.txt on Bullseye):
+       dtoverlay=disable-bt    ← detaches Bluetooth from UART0 (GPIO14/15)
+       enable_uart=1           ← enables full PL011 UART on GPIO14/15
+  2. Disable serial console login via raspi-config:
+       Interface Options → Serial Port
+         "Login shell over serial?" → NO
+         "Serial port hardware enabled?" → YES
+  3. Reboot. The port appears as /dev/serial0 → /dev/ttyAMA0.
+  NOTE: Disabling Bluetooth is required — on RPi 4, Bluetooth occupies UART0
+        by default. After disable-bt, GPIO14/15 become a reliable PL011 UART.
 
 Library: pyserial (pip install pyserial)
          pms5003  (pip install pms5003)
@@ -80,7 +89,7 @@ class PMS5003Driver:
     Parameters
     ----------
     port : str
-        Serial port. RPi 4 default = '/dev/ttyAMA1' (UART2).
+        Serial port. RPi 4 Model B default = '/dev/serial0' (UART0 on GPIO14/15).
         Alternative: '/dev/ttyUSB0' if using a USB-UART adapter.
     timeout_s : float
         Read timeout in seconds. PMS5003 sends frames every ~1 second.
@@ -91,7 +100,7 @@ class PMS5003Driver:
 
     def __init__(
         self,
-        port: str = "/dev/ttyAMA1",
+        port: str = "/dev/serial0",
         timeout_s: float = 2.0,
         max_consecutive_errors: int = 5,
     ):
