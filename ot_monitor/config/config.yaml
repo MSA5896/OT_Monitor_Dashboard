@@ -19,7 +19,9 @@ ot_name: "Operating Theatre 1"
 
 # ─── Data Source ────────────────────────────────────────────────────────────
 data_source:
-  type: simulator          # options: simulator | websocket | mqtt | serial
+  type: hardware           # options: hardware | simulator | websocket | mqtt | serial
+                           # Use 'hardware' on RPi with sensors wired up
+                           # Use 'simulator' on Windows dev machine for UI testing
   # WebSocket source (type: websocket)
   ws_url: "ws://localhost:8001/ws/telemetry"
   # MQTT source (type: mqtt)
@@ -115,7 +117,7 @@ alarm_engine:
 
 # ─── Server ─────────────────────────────────────────────────────────────────
 server:
-  host: "127.0.0.1"
+  host: "0.0.0.0"    # IMPORTANT: must be 0.0.0.0 on RPi so dashboard can reach it over LAN
   port: 8001
   ws_broadcast_interval_s: 1.0   # push cadence to Flutter clients
 

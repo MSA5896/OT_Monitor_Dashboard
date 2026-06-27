@@ -12,7 +12,13 @@ class LocationsService {
 
   /// Seeded with the backend's default OT so the app is usable out of the box.
   static const List<CriticalLocation> _defaults = [
-    CriticalLocation(id: 'OT-01', name: 'Operating Theatre 1', type: 'OT'),
+    CriticalLocation(
+      id:   'OT-01',
+      name: 'Operating Theatre 1',
+      type: 'OT',
+      host: 'ot-monitor.local',   // RPi mDNS hostname — change to IP in Settings if needed
+      port: 8001,
+    ),
   ];
 
   Future<List<CriticalLocation>> load() async {
