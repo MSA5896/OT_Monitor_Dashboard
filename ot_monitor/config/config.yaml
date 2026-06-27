@@ -160,7 +160,7 @@ cloud:
 # Sensors:
 #   SCD30   (I2C 0x61) → CO₂, Temperature, Humidity
 #   BME280  (I2C 0x76) → Barometric Pressure (also feeds SCD30 pressure compensation)
-#   PMS5003 (UART2)    → PM1.0, PM2.5, PM10
+#   PMS5003 (UART0 /dev/serial0, GPIO14/GPIO15) → PM1.0, PM2.5, PM10
 #
 # I2C IMPORTANT: SCD30 requires clock stretching. Slow the I2C bus to 10kHz by
 # adding this line to /boot/firmware/config.txt and rebooting:

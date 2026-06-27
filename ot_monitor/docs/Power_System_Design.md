@@ -87,8 +87,8 @@ Switchover is **fully automatic and passive** — two Schottky diodes on the LM2
                             │  (5V)    │ │  5V   │ │  5V     │ │  5V  │ └───┬────────┘
                             └────┬─────┘ └──┬────┘ └─────────┘ └──────┘    │
                                  │ (3.3V)    │ (UART)                        │
-                         ┌───────┴───────┐   └─────────► RPi UART2         [Buzzer Circuit]
-                         │ I2C BUS       │               (/dev/ttyAMA1)
+                         ┌───────┴───────┐   └─────────► RPi UART0         [Buzzer Circuit]
+                         │ I2C BUS       │               (/dev/serial0)
                          │ SDA GPIO2 (3) │
                          │ SCL GPIO3 (5) │
                          │               │
@@ -193,8 +193,8 @@ RPi Pin 5 (SCL)  ──► BME280 SCL, SCD30 SCL, SDP819 SCL
 RPi Pin 6 (GND)  ──► BME280 GND, SCD30 GND, SDP819 GND
 
 RPi GPIO18       ──► [1kΩ] ──► BC547 Base  (Buzzer control)
-RPi UART2 TX     ──► PMS5003 RX (Pin 4)
-RPi UART2 RX     ◄── PMS5003 TX (Pin 5)
+RPi GPIO14 (UART0 TX / Pin 8)  ──► PMS5003 RX (Pin 4)
+RPi GPIO15 (UART0 RX / Pin 10) ◄── PMS5003 TX (Pin 5)
 RPi GPIO17       ──► PMS5003 SET (Pin 3)   — pull HIGH to enable
 RPi GPIO27       ──► PMS5003 RESET (Pin 6) — pull HIGH for normal
 ```

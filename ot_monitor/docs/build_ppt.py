@@ -201,7 +201,7 @@ layers = [
       "BME280 — Barometric Pressure",
       "PMS5003 — PM1 / PM2.5 / PM10",
       "Raspberry Pi 4 (host)",
-      "I²C @ 10kHz + UART2 @ 9600"]),
+      "I²C @ 10kHz + UART0 @ 9600"]),
     (4.65,  1.1, 3.8, 5.8, SURFACE,  AMBER, "BACKEND LAYER",
      ["FastAPI + Uvicorn (port 8001)",
       "HardwareSource (asyncio + threads)",
@@ -259,12 +259,12 @@ sensors = [
       ("Address",        "0x76 (SDO→GND)"),
       ("Power",          "3.3V / 3.6 µA"),]),
     ("PMS5003", "Plantower", "PM1.0 · PM2.5 · PM10",
-     RED, "UART2 @ 9600",
+     RED, "UART0 @ 9600",
      [("PM Range",    "0–500 µg/m³"),
       ("Resolution",  "1 µg/m³"),
       ("Technology",  "Laser scattering"),
-      ("Interface",   "UART2 @ 9600"),
-      ("Port",        "/dev/ttyAMA1"),
+      ("Interface",   "UART0 @ 9600 (GPIO14/15)"),
+      ("Port",        "/dev/serial0 → ttyAMA0"),
       ("Power",       "5V / 100 mA"),]),
 ]
 
@@ -313,8 +313,8 @@ pins = [
     ("Pin 9",  "GND",            TEXT2),
     ("Pin 11", "GPIO17",         GREEN),
     ("Pin 13", "GPIO27",         GREEN),
-    ("Pin 21", "GPIO9 / UART2 RX", RGBColor(0xCE,0x93,0xD8)),
-    ("Pin 24", "GPIO8 / UART2 TX", RGBColor(0xCE,0x93,0xD8)),
+    ("Pin 8",  "GPIO14 / UART0 TX", RGBColor(0xCE,0x93,0xD8)),
+    ("Pin 10", "GPIO15 / UART0 RX", RGBColor(0xCE,0x93,0xD8)),
 ]
 
 for i, (pin, name, col) in enumerate(pins):
@@ -341,8 +341,8 @@ conns = [
     (RED,    "PMS5003", "VCC  → Pin 2  (5V)"),
     (RED,    "PMS5003", "GND  → Pin 9  (GND)"),
     (RED,    "PMS5003", "SET  → Pin 11 (GPIO17 HIGH)"),
-    (RED,    "PMS5003", "TX   → Pin 21 (UART2 RX)"),
-    (RED,    "PMS5003", "RX   → Pin 24 (UART2 TX)"),
+    (RED,    "PMS5003", "TX   → Pin 10 (GPIO15 / UART0 RX)"),
+    (RED,    "PMS5003", "RX   → Pin 8  (GPIO14 / UART0 TX)"),
 ]
 
 for i, (col, sensor, conn) in enumerate(conns):
@@ -638,7 +638,7 @@ steps_deploy = [
     ("1", CYAN,  "Flash SD Card",
      "Raspberry Pi Imager → RPi OS Lite 64-bit\nPre-configure SSH, hostname: ot-monitor"),
     ("2", AMBER, "Enable Interfaces",
-     "/boot/firmware/config.txt:\n  dtparam=i2c_arm_baudrate=10000\n  dtoverlay=uart2"),
+     "/boot/firmware/config.txt:\n  dtparam=i2c_arm_baudrate=10000\n  dtoverlay=disable-bt\n  enable_uart=1"),
     ("3", GREEN, "Install Libraries",
      "pip install adafruit-circuitpython-scd30\nadafruit-circuitpython-bme280 pyserial"),
     ("4", CYAN,  "Test Sensors",

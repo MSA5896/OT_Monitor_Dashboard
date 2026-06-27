@@ -252,7 +252,7 @@ If `serial0 → ttyS0`, the `dtoverlay=disable-bt` or `enable_uart=1` line is mi
 
 ### Checkpoint 3 ✓
 - `i2cdetect -y 1` shows `61` and `76`
-- `/dev/ttyAMA1` exists
+- `ls -la /dev/serial0` shows `serial0 -> ttyAMA0`
 
 ---
 
@@ -274,7 +274,7 @@ newgrp dialout
 
 ```bash
 cd ~
-git clone https://github.com/MSA5896/Project.git ot_monitor
+git clone https://github.com/MSA5896/OT_Monitor_Dashboard.git ot_monitor
 cd ot_monitor/ot_monitor/backend
 ```
 
@@ -520,20 +520,22 @@ Fix:
 
 ---
 
-**Error: `/dev/ttyAMA1` does not exist**
+**Error: `/dev/serial0` points to `ttyS0` instead of `ttyAMA0`**
 
 ```
-Cause:  UART2 device tree overlay is not enabled.
+Cause:  Bluetooth still owns UART0, or enable_uart=1 is missing.
 Fix:
   sudo nano /boot/firmware/config.txt
-  → Add at bottom:  dtoverlay=uart2
+  → Add at bottom:
+      dtoverlay=disable-bt
+      enable_uart=1
   sudo reboot
-  ls /dev/ttyAMA1    # must exist now
+  ls -la /dev/serial0    # must show: serial0 -> ttyAMA0
 ```
 
 ---
 
-**Error: `PermissionError: [Errno 13] Permission denied: '/dev/ttyAMA1'`**
+**Error: `PermissionError: [Errno 13] Permission denied: '/dev/serial0'`**
 
 ```
 Cause:  The msa user is not in the dialout group.
@@ -551,8 +553,8 @@ Fix:
 Cause:  RX/TX wires are either loose, swapped, or crossed incorrectly.
 Fix:
   • Power off the RPi
-  • Confirm: PMS5003 TX (Pin 5) → RPi GPIO9 / UART2 RX (physical Pin 21)
-             PMS5003 RX (Pin 4) → RPi GPIO8 / UART2 TX (physical Pin 24)
+  • Confirm: PMS5003 TX (Pin 5) → RPi GPIO15 / UART0 RX (physical Pin 10)
+             PMS5003 RX (Pin 4) → RPi GPIO14 / UART0 TX (physical Pin 8)
   • Re-seat both wires firmly
   • Power back on and retest
 ```
@@ -722,7 +724,7 @@ Paste this block into the RPi terminal to get a full health snapshot:
 echo "=== Service Status ===" && sudo systemctl status ot-monitor --no-pager
 echo "" && echo "=== Last 30 Log Lines ===" && sudo journalctl -u ot-monitor -n 30 --no-pager
 echo "" && echo "=== I²C Scan ===" && i2cdetect -y 1
-echo "" && echo "=== UART2 ===" && ls -la /dev/ttyAMA1
+echo "" && echo "=== UART0 ===" && ls -la /dev/serial0
 echo "" && echo "=== Sensor Test ===" && cd ~/ot_monitor/ot_monitor/backend && source venv/bin/activate && python sensors/test_sensors.py
 echo "" && echo "=== API Health ===" && curl -s http://localhost:8001/health | python3 -m json.tool
 ```
@@ -744,7 +746,7 @@ echo "" && echo "=== API Health ===" && curl -s http://localhost:8001/health | p
 | Enable hardware mode | Set `data_source.type: hardware` in config.yaml |
 | SCD30 I²C address | `0x61` (fixed) |
 | BME280 I²C address | `0x76` (SDO → GND) or `0x77` (SDO → 3.3V) |
-| PMS5003 UART port | `/dev/ttyAMA1` |
+| PMS5003 UART port | `/dev/serial0` (UART0, GPIO14/GPIO15) |
 | Required I²C speed | `10000` Hz (10 kHz) — mandatory for SCD30 |
 | SCD30 first-read warmup | ~10 seconds |
 | PMS5003 fan/laser warmup | ~30 seconds |

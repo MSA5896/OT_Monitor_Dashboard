@@ -15,7 +15,7 @@
 7. [Complete Wiring — All 3 Sensors + Power Together](#7-complete-wiring--all-3-sensors--power-together)
 8. [Flash Raspberry Pi OS](#8-flash-raspberry-pi-os)
 9. [First Boot & System Update](#9-first-boot--system-update)
-10. [Enable I2C & UART2 Interfaces](#10-enable-i2c--uart2-interfaces)
+10. [Enable I2C & UART0 Interfaces](#10-enable-i2c--uart0-interfaces)
 11. [Verify Wiring with Software](#11-verify-wiring-with-software)
 12. [Install Python Dependencies](#12-install-python-dependencies)
 13. [Clone & Configure the Project](#13-clone--configure-the-project)
@@ -365,7 +365,7 @@ This is the RPi 4 header as viewed from above (USB ports facing down).
   │ Pin 17 │ 3.3V  ●══● GPIO24│ Pin 18 │              │
   │ Pin 19 │ MOSI  ●══● GND   │ Pin 20 │              │
   │ Pin 21 │ MISO  ●══● GPIO25│ Pin 22 │              │
-  │ Pin 23 │ SCLK  ●══● GPIO8 │ Pin 24 │ ← UART2 TX  │
+  │ Pin 23 │ SCLK  ●══● GPIO8 │ Pin 24 │             │
   │ Pin 25 │ GND   ●══● GPIO7 │ Pin 26 │              │
   │ Pin 27 │ ID_SD ●══● ID_SC │ Pin 28 │              │
   │ Pin 29 │ GPIO5 ●══● GND   │ Pin 30 │              │
@@ -1064,7 +1064,7 @@ OT Environment Monitoring System — Sensor Hardware Test
 ✓  Humidity    : 51.2 %RH  (reference only)
 
 ────────────────────────────────────────────────────────────
-  PMS5003 — PM1.0 / PM2.5 / PM10 (UART2 /dev/ttyAMA1)
+  PMS5003 — PM1.0 / PM2.5 / PM10 (UART0 /dev/serial0)
 ────────────────────────────────────────────────────────────
   Waiting for first frame (up to 3 seconds)…
 ✓  PM1.0  : 3.0 µg/m³
@@ -1142,7 +1142,7 @@ hardware_source:
   scd30_measurement_interval_s: 2    # seconds between CO₂ readings (min 2)
   scd30_temperature_offset_c: 0.0    # increase if SCD30 reads higher than reference thermometer
   bme280_i2c_address: 0x76           # change to 0x77 if you wired SDO to 3.3V instead
-  pms_port: "/dev/ttyAMA1"           # UART2 port — should not change on RPi 4
+  pms_port: "/dev/serial0"           # UART0: GPIO14 (TXD0/Pin8), GPIO15 (RXD0/Pin10)
   poll_interval_s: 2.0               # how often all sensors are polled
 ```
 
@@ -1389,24 +1389,24 @@ If missing, add it and reboot.
 Likely causes:
   1. TX and RX wires are swapped  ← most common
   2. VCC on 3.3V instead of 5V
-  3. dtoverlay=uart2 missing from config.txt
-  4. /dev/ttyAMA1 doesn't exist
+  3. dtoverlay=disable-bt or enable_uart=1 missing from config.txt
+  4. /dev/serial0 points to ttyS0 instead of ttyAMA0
 
 Fix step by step:
-  1. ls /dev/ttyAMA1            (must exist)
-  2. grep uart2 /boot/firmware/config.txt   (must be present)
+  1. ls -la /dev/serial0         (must show: serial0 -> ttyAMA0)
+  2. grep disable-bt /boot/firmware/config.txt   (must be present)
   3. Check PMS5003 VCC → RPi Pin 2 (5V), NOT Pin 1 (3.3V)
   4. Check RX/TX cross:
-     PMS5003 Pin5 TX → RPi Pin21 (UART2 RX)
-     PMS5003 Pin4 RX → RPi Pin24 (UART2 TX)
+     PMS5003 Pin5 TX → RPi Pin 10 (GPIO15 / UART0 RX)
+     PMS5003 Pin4 RX → RPi Pin 8  (GPIO14 / UART0 TX)
 ```
 
 ---
 
-### `Permission denied` on `/dev/ttyAMA1`
+### `Permission denied` on `/dev/serial0`
 
 ```bash
-sudo usermod -a -G dialout pi
+sudo usermod -a -G dialout msa
 sudo reboot
 ```
 
@@ -1444,8 +1444,8 @@ sudo journalctl -u ot-monitor -n 20 --no-pager
 echo "=== I2C Scan ==="
 i2cdetect -y 1
 
-echo "=== UART2 Port ==="
-ls -la /dev/ttyAMA1
+echo "=== UART0 Port ==="
+ls -la /dev/serial0
 
 echo "=== Sensor Test ==="
 cd ~/Desktop/ot_monitor/backend && source venv/bin/activate
@@ -1466,18 +1466,18 @@ python -m sensors.test_sensors
 ├─────────────────────┼───────────────────────────────────────┤
 │ SCD30 I2C address   │ 0x61  (fixed)                        │
 │ BME280 I2C address  │ 0x76  (SDO → GND)                    │
-│ PMS5003 UART port   │ /dev/ttyAMA1                         │
+│ PMS5003 UART port   │ /dev/serial0 (UART0 GPIO14/GPIO15)   │
 │ I2C bus speed       │ 10,000 Hz (10 kHz)                   │
 │ SCD30 warmup        │ ~10–15 seconds                        │
 ├─────────────────────┼───────────────────────────────────────┤
-│ Run sensor test     │ python -m sensors.test_sensors        │
-│                     │ (from backend/ directory)             │
+│ Run sensor test     │ python sensors/test_sensors.py        │
+│                     │ (from backend/ with venv active)      │
 │ View live logs      │ sudo journalctl -u ot-monitor -f      │
 │ Restart backend     │ sudo systemctl restart ot-monitor     │
 │ Config file         │ ~/Desktop/ot_monitor/config/config.yaml│
 ├─────────────────────┼───────────────────────────────────────┤
 │ I2C verify          │ i2cdetect -y 1                       │
-│ UART verify         │ ls /dev/ttyAMA1                      │
+│ UART verify         │ ls -la /dev/serial0 (→ ttyAMA0)     │
 │ Group membership    │ groups msa  (must include dialout,i2c) │
 └─────────────────────┴───────────────────────────────────────┘
 ```
