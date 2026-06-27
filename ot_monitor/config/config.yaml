@@ -19,9 +19,8 @@ ot_name: "Operating Theatre 1"
 
 # ─── Data Source ────────────────────────────────────────────────────────────
 data_source:
-  type: hardware           # options: hardware | simulator | websocket | mqtt | serial
-                           # Use 'hardware' on RPi with sensors wired up
-                           # Use 'simulator' on Windows dev machine for UI testing
+  type: simulator          # options: hardware | simulator | websocket | mqtt | serial
+                           # Change to 'hardware' on RPi after running sensors/test_sensors.py
   # WebSocket source (type: websocket)
   ws_url: "ws://localhost:8001/ws/telemetry"
   # MQTT source (type: mqtt)

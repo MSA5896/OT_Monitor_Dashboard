@@ -4,7 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// (matches config.yaml server.port = 8001). Editable in the Settings screen
 /// and persisted via shared_preferences.
 class AppConfig {
-  static String host = 'ot-monitor.local';  // RPi hostname — change to IP if mDNS unavailable
+  static String host = 'localhost';  // dev default; on RPi set to ot-monitor.local or IP via Settings
   static int port = 8001;
 
   static String get httpBase => 'http://$host:$port';

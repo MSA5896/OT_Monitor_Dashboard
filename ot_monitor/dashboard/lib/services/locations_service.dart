@@ -16,7 +16,7 @@ class LocationsService {
       id:   'OT-01',
       name: 'Operating Theatre 1',
       type: 'OT',
-      host: 'ot-monitor.local',   // RPi mDNS hostname — change to IP in Settings if needed
+      host: 'localhost',   // dev default; on RPi change to ot-monitor.local or IP in Settings
       port: 8001,
     ),
   ];
