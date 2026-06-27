@@ -13,9 +13,7 @@ import '../widgets/trend_chart.dart';
 /// a full-width live trend graph. Battery lives in the header; detailed
 /// per-sensor / threshold "slider" data lives in admin Settings.
 class DashboardScreen extends StatefulWidget {
-  /// Opens the styled location picker overlay (from the location bar tap).
-  final VoidCallback onPickLocation;
-  const DashboardScreen({super.key, required this.onPickLocation});
+  const DashboardScreen({super.key});
 
   @override
   State<DashboardScreen> createState() => _DashboardScreenState();
@@ -146,7 +144,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   provider: provider,
                   systemStatus: payload.systemStatus,
                   activeAlarms: payload.activeAlarms.length,
-                  onPickLocation: widget.onPickLocation,
                 ),
               ),
               const SizedBox(height: gap),
@@ -239,12 +236,10 @@ class _LocationBar extends StatelessWidget {
   final DashboardProvider provider;
   final String systemStatus;
   final int activeAlarms;
-  final VoidCallback onPickLocation;
   const _LocationBar({
     required this.provider,
     required this.systemStatus,
     required this.activeAlarms,
-    required this.onPickLocation,
   });
 
   @override
@@ -252,7 +247,7 @@ class _LocationBar extends StatelessWidget {
     final color = systemStatusColor(systemStatus);
     final selected = provider.selectedLocation;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 14),
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(12),
@@ -260,37 +255,32 @@ class _LocationBar extends StatelessWidget {
       ),
       child: Row(
         children: [
-          // Tappable location selector → opens the styled picker overlay
-          Material(
-            color: Colors.transparent,
-            borderRadius: BorderRadius.circular(9),
-            child: InkWell(
-              borderRadius: BorderRadius.circular(9),
-              onTap: onPickLocation,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(Icons.location_on_rounded,
-                        size: 18, color: AppColors.accent),
-                    const SizedBox(width: 8),
-                    Text(
-                      selected != null
-                          ? '${selected.name}  ·  ${selected.type}'
-                          : 'Select location',
-                      style: const TextStyle(
-                          color: AppColors.textPrimary,
-                          fontWeight: FontWeight.w800,
-                          fontSize: 16),
-                    ),
-                    const SizedBox(width: 4),
-                    const Icon(Icons.keyboard_arrow_down_rounded,
-                        size: 20, color: AppColors.textSecondary),
-                  ],
-                ),
-              ),
-            ),
+          const Icon(Icons.location_on_rounded,
+              size: 18, color: AppColors.accent),
+          const SizedBox(width: 8),
+          // Location selector (nurse/steward picks the critical location)
+          DropdownButton<String>(
+            value: selected?.id,
+            underline: const SizedBox.shrink(),
+            isDense: true,
+            borderRadius: BorderRadius.circular(10),
+            style: const TextStyle(
+                color: AppColors.textPrimary,
+                fontWeight: FontWeight.w800,
+                fontSize: 16),
+            items: provider.locations
+                .map((l) => DropdownMenuItem(
+                      value: l.id,
+                      child: Text('${l.name}  ·  ${l.type}'),
+                    ))
+                .toList(),
+            onChanged: (id) {
+              final loc = provider.locations.firstWhere(
+                (l) => l.id == id,
+                orElse: () => provider.locations.first,
+              );
+              provider.selectLocation(loc);
+            },
           ),
           const Spacer(),
           Container(
